@@ -2,8 +2,9 @@ from database import Database
 import os
 from environs import Env
 from timed import timed
+from typing import Iterable
 
-class Geolife:
+class Migrator:
     def __init__(self, database: Database):
         self.database = database
         self.package_dir = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +80,7 @@ class Geolife:
 
         # User IDs can be obtained from the directory names in the data directory.
         # Filter on numeric directory names to avoid hidden files and directories.
-        user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
+        user_ids = self._get_user_ids()
 
         labeled_ids: list[str] = []
         with open(labeled_ids_filepath, "r") as f:
@@ -100,6 +101,14 @@ class Geolife:
         self.database.cursor.execute("SELECT * FROM User")
         rows = self.database.cursor.fetchall()
         print(f"Seeded {len(rows)} Users")
+
+    def _get_user_ids(self) -> Iterable[str]:
+        dataset_dir = os.path.join(self.package_dir, "dataset")
+        data_dir = os.path.join(dataset_dir, "data")
+
+        # User IDs can be obtained from the directory names in the data directory.
+        # Filter on numeric directory names to avoid hidden files and directories.
+        return filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
 
     @timed
     def seed_activities(self):
@@ -135,8 +144,7 @@ class Geolife:
         """
         data: list[tuple[str, str, str, str]] = []
 
-        data_dir = os.path.join(self.package_dir, "dataset", "data")
-        user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
+        user_ids = self._get_user_ids()
 
         for user_id in user_ids:
             print("Generating seed data for user:", user_id, end="\t")
@@ -214,7 +222,7 @@ class Geolife:
         data: list[tuple[str, str, str, str, str, str]] = []
 
         data_dir = os.path.join(self.package_dir, "dataset", "data")
-        user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
+        user_ids = self._get_user_ids()
 
         for user_id in user_ids:
             print("Generating seed data for user:", user_id, end="\t")
@@ -230,7 +238,7 @@ class Geolife:
 
             print("✅")
 
-        batch_size = 30_000
+        batch_size = 120_000
         print(data[:20])
         for i in range(0, len(data), batch_size):
             print(f"Seeding batch: {i // batch_size} of {len(data) // batch_size}", end="\t")
@@ -261,7 +269,7 @@ def main():
         database=env.str("DB_DATABASE")
     )
 
-    geolife = Geolife(database)
+    geolife = Migrator(database)
     geolife.migrate()
     geolife.seed()
 
