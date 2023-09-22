@@ -5,8 +5,9 @@ from environs import Env
 class Geolife:
     def __init__(self, database: Database):
         self.database = database
+        self.package_dir = os.path.dirname(os.path.abspath(__file__))
     
-    def migrate(self):
+    def migrate(self) -> None:
         """
         Run all migrations in the migrations directory in lexicographical order.
         Assumes idempotency of migrations, i.e. that running a migration twice
@@ -14,8 +15,7 @@ class Geolife:
         """
 
         # Get all migration files in the migrations directory
-        package_dir = os.path.dirname(os.path.abspath(__file__))
-        migration_dir = os.path.join(package_dir, "migrations")
+        migration_dir = os.path.join(self.package_dir, "migrations")
         migration_files = os.listdir(migration_dir)
 
         print("Migration files: ", migration_files)
@@ -34,7 +34,38 @@ class Geolife:
             self.database.connection.rollback()
 
     def seed(self):
-        raise NotImplementedError()
+        self._seed_users()
+    
+    def _seed_users(self):
+        dataset_dir = os.path.join(self.package_dir, "dataset")
+        data_dir = os.path.join(dataset_dir, "data")
+        labeled_ids_filepath = os.path.join(dataset_dir, "labeled_ids.txt")
+
+        # User IDs can be obtained from the directory names in the data directory.
+        # Filter on numeric directory names to avoid hidden files and directories.
+        user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
+
+        labeled_ids: list[str] = []
+        with open(labeled_ids_filepath, "r") as f:
+            labeled_ids = f.read().splitlines()
+
+        data: list[tuple[str, bool]] = []
+        for user_id in user_ids:
+            has_labels = user_id in labeled_ids
+            data.append((user_id, has_labels))
+        
+        query = """
+            INSERT INTO User(id, has_labels) VALUES (%s, %s) ON DUPLICATE KEY UPDATE has_labels=VALUES(has_labels)
+        """
+
+        print("Inserting users")
+        self.database.cursor.executemany(query, data)
+        self.database.connection.commit()
+
+        print("Fetching users")
+        self.database.cursor.execute("SELECT * FROM User")
+        print(self.database.cursor.fetchall())
+
 
 def main():
     env = Env()
@@ -50,7 +81,9 @@ def main():
         database=env.str("DB_DATABASE")
     )
 
-    Geolife(database).migrate()
+    geolife = Geolife(database)
+    geolife.migrate()
+    geolife.seed()
 
 if __name__ == "__main__":
     main()
