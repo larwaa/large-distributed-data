@@ -28,3 +28,12 @@ pip install -r requirements.txt
 ```zsh
 python src/main.py
 ```
+
+## Data
+
+This project expects a `dataset` directory with:
+
+- `data`: a directory of directories for each user, which in turn contain all activities as `.plt`-files and a `labels.txt` if the user has labeled their activities with the mode of transportation
+- `labeled_ids.txt`: A file of user IDs for the users that have labelled their mode of transportation.
+
+Due to licensing, the dataset cannot be published.
