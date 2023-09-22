@@ -14,8 +14,11 @@ class Geolife:
         """
         Wipe the database of all data and tables.
         """
+        print("Wiping TrackPoint")
         self.database.cursor.execute("DROP TABLE IF EXISTS TrackPoint")
+        print("Wiping Activity")
         self.database.cursor.execute("DROP TABLE IF EXISTS Activity")
+        print("Wiping User")
         self.database.cursor.execute("DROP TABLE IF EXISTS User")
         self.database.connection.commit()
         self.migrated = False
@@ -59,11 +62,12 @@ class Geolife:
         """
         assert self.migrated, "You must run the migrations before seeding the database. Run `.migrate()` first."
 
-        self._seed_users()
-        self._seed_acitivites()
+        self.seed_users()
+        self.seed_activities()
+        self.seed_track_points()
     
     @timed
-    def _seed_users(self):
+    def seed_users(self):
         """
         Seed the users table with the user IDs from the dataset.
         This seed is idempotent, i.e. it can be run multiple times without
@@ -98,7 +102,7 @@ class Geolife:
         print(f"Seeded {len(rows)} Users")
 
     @timed
-    def _seed_acitivites(self):
+    def seed_activities(self):
         """
         Seed activities to the database from the dataset.
         While the exercise text suggests using `os.walk`, we opt for a different approach
@@ -109,7 +113,7 @@ class Geolife:
         2. Update the activity records with the transportation modes with the power of SQL.
         """
         query = """
-            INSERT INTO Activity(user_id,  start_datetime, end_datetime) VALUES (%s, %s, %s)
+            INSERT IGNORE INTO Activity(id, user_id, start_datetime, end_datetime) VALUES (%s, %s, %s, %s)
         """
 
         data = self._make_activity_data()
@@ -123,48 +127,41 @@ class Geolife:
         rows = self.database.cursor.fetchall()
         print(f"Seeded {len(rows)} Activities")
 
-    def _make_activity_data(self) -> list[tuple[str, str, str]]:
+    def _make_activity_data(self) -> list[tuple[str, str, str, str]]:
         """
         Create data for the activities table.
         Crucially, this is NOT idempotent, i.e. running this function multiple times
         will result in duplicate data.
         """
-        data: list[tuple[str, str, str]] = []
+        data: list[tuple[str, str, str, str]] = []
 
         data_dir = os.path.join(self.package_dir, "dataset", "data")
         user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
 
         for user_id in user_ids:
             print("Generating seed data for user:", user_id, end="\t")
-            user_activity_dir = os.path.join(data_dir, user_id, "Trajectory")
-            activity_files = os.listdir(user_activity_dir)
-            filtered_activity_files: list[str] = []
-            
+            activity_files = self._get_activity_files_for_user(user_id)
 
+            # For the remaining files, create an activity record
             for activity_file in activity_files:
-                # Filter out files that exceed 2500 track points
-                with open(os.path.join(user_activity_dir, activity_file), "r") as f:
+                with open(activity_file, "r") as f:
                     # Skip the first 6 lines, as they are headers
                     track_points = f.readlines()[6:]
-                    # Only record the activity if we have fewer than 2500 track points
-                    if len(track_points) <= 2500:
-                        filtered_activity_files.append(activity_file)
-
-            for activity_file in filtered_activity_files:
-                with open(os.path.join(user_activity_dir, activity_file), "r") as f:
-                    # Skip the first 6 lines, as they are headers
-                    track_points = f.readlines()[6:]
+                    
                     # Get the start and end datetime
-                    start_date = track_points[0].split(",")[5]
-                    start_time = track_points[0].split(",")[6]
-                    end_date = track_points[-1].split(",")[5]
-                    end_time = track_points[-1].split(",")[6]
+                    start_date = track_points[0].split(",")[5].strip()
+                    start_time = track_points[0].split(",")[6].strip()
+                    end_date = track_points[-1].split(",")[5].strip()
+                    end_time = track_points[-1].split(",")[6].strip()
 
                     start_datetime = f"{start_date} {start_time}"
                     end_datetime = f"{end_date} {end_time}"
-
                     
-                    data.append((user_id, start_datetime, end_datetime))
+                    # To ensure idempotency and consistency, we manually create a unique ID for each
+                    # activity.
+                    activity_id = self._get_activity_id(activity_file, user_id)
+                    
+                    data.append((activity_id, user_id, start_datetime, end_datetime))
             print("✅")
         return data
     
@@ -189,6 +186,65 @@ class Geolife:
                 start_datetime, end_datetime, mode = label.split("\t")
                 labels.append((mode.strip(), id, start_datetime, end_datetime))
             return labels
+
+    def _get_activity_files_for_user(self, user_id: str, max_track_points: int = 2500) -> list[str]:
+        user_activity_dir = os.path.join(self.package_dir, "dataset", "data", user_id, "Trajectory")
+        activity_files = os.listdir(user_activity_dir)
+        activity_files_abs_path: list[str] = []
+        
+        # Filter out files that exceed 2500 track points
+        for activity_file in activity_files:
+            # Filter out files that exceed 2500 track points
+            with open(os.path.join(user_activity_dir, activity_file), "r") as f:
+                # Skip the first 6 lines, as they are headers
+                track_points = f.readlines()[6:]
+                # Only record the activity if we have fewer than 2500 track points
+                if len(track_points) <= max_track_points:
+                    activity_files_abs_path.append(os.path.join(user_activity_dir, activity_file))
+        
+        return activity_files_abs_path
+
+    
+    @timed
+    def seed_track_points(self):
+        query = """
+            INSERT INTO TrackPoint (activity_id, latitude, longitude, altitude, date_days, datetime) VALUES (%s, %s, %s, %s, %s, %s)
+        """
+
+        data: list[tuple[str, str, str, str, str, str]] = []
+
+        data_dir = os.path.join(self.package_dir, "dataset", "data")
+        user_ids = filter(lambda dir_name: dir_name.isnumeric(), os.listdir(data_dir))
+
+        for user_id in user_ids:
+            print("Generating seed data for user:", user_id, end="\t")
+            activity_files = self._get_activity_files_for_user(user_id)
+            for activity_file in activity_files:
+                activity_id = self._get_activity_id(activity_file, user_id)
+                with open(activity_file, "r") as f:
+                    track_points = f.readlines()[6:]
+                    for track_point in track_points:
+                        latitude, longitude, _, altitude, date_days, date, time = track_point.split(",")
+                        datetime = f"{date} {time.strip()}"
+                        data.append((activity_id, latitude, longitude, altitude, date_days, datetime))
+
+            print("✅")
+
+        batch_size = 30_000
+        print(data[:20])
+        for i in range(0, len(data), batch_size):
+            print(f"Seeding batch: {i // batch_size} of {len(data) // batch_size}", end="\t")
+            self.database.cursor.executemany(query, data[i:i+batch_size])
+            print("✅")
+
+        self.database.connection.commit()
+        self.database.cursor.execute("SELECT * FROM TrackPoint")
+        rows = self.database.cursor.fetchall()
+        print(f"Seeded {len(rows)} TrackPoints")
+
+    def _get_activity_id(self, activity_file_name: str, user_id: str) -> str:
+        return f"{user_id}-{activity_file_name.split('/')[-1].split('.')[0]}"
+
 
     
 def main():

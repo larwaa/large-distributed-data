@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS Activity (
     -- ID of the activity
-    id INT AUTO_INCREMENT NOT NULL,
+    id VARCHAR(50) NOT NULL,
     PRIMARY KEY (id),
     -- Foreign key reference to the user which this activity belongs to
     user_id VARCHAR(50),
