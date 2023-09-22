@@ -1,12 +1,14 @@
 from database import Database
 import os
 from environs import Env
+from timed import timed
 
 class Geolife:
     def __init__(self, database: Database):
         self.database = database
         self.package_dir = os.path.dirname(os.path.abspath(__file__))
     
+    @timed
     def migrate(self) -> None:
         """
         Run all migrations in the migrations directory in lexicographical order.
@@ -18,7 +20,7 @@ class Geolife:
         migration_dir = os.path.join(self.package_dir, "migrations")
         migration_files = os.listdir(migration_dir)
 
-        print("Migration files: ", migration_files)
+        print("Found migration files: ", migration_files)
 
         # Start a transction
         self.database.connection.start_transaction()
@@ -26,16 +28,19 @@ class Geolife:
             # For each file in the directory, in lexicographical order, run the migration
             for migration_file in sorted(migration_files):
                 with open(os.path.join(migration_dir, migration_file), "r") as f:
-                    print("Running migration: " + migration_file + "...")
+                    print("Running migration:".ljust(20), migration_file.ljust(20), end="")
                     self.database.cursor.execute(f.read())
-                    print("Migration done!")
+                    print("✅")
             self.database.connection.commit()
-        except: 
+        except Exception as e: 
+            print("❌")
+            print("Something went wrong:", e)
             self.database.connection.rollback()
 
     def seed(self):
         self._seed_users()
     
+    @timed
     def _seed_users(self):
         dataset_dir = os.path.join(self.package_dir, "dataset")
         data_dir = os.path.join(dataset_dir, "data")
@@ -58,13 +63,12 @@ class Geolife:
             INSERT INTO User(id, has_labels) VALUES (%s, %s) ON DUPLICATE KEY UPDATE has_labels=VALUES(has_labels)
         """
 
-        print("Inserting users")
         self.database.cursor.executemany(query, data)
         self.database.connection.commit()
 
-        print("Fetching users")
         self.database.cursor.execute("SELECT * FROM User")
-        print(self.database.cursor.fetchall())
+        rows = self.database.cursor.fetchall()
+        print(f"Seeded {len(rows)} Users")
 
 
 def main():
