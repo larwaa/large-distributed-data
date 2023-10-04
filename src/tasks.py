@@ -1,4 +1,3 @@
-import pandas as pd
 from database import Database
 from timed import timed
 
@@ -65,4 +64,19 @@ class Task:
             WHERE a.transportation_mode LIKE 'Bus';
         """
 
+        return self.db.query(query)
+    
+    @timed
+    def task5(self):
+        query = """
+            SELECT DISTINCT u.id AS UserID, Count(DISTINCT a.transportation_mode) as '# Transportation Modes', GROUP_CONCAT(DISTINCT a.transportation_mode SEPARATOR ', ') AS 'Transportation Modes'
+            FROM Activities AS a
+            LEFT JOIN Users AS u
+                ON a.user_id = u.id
+            WHERE a.transportation_mode != ""
+            GROUP BY u.id
+            ORDER BY Count(DISTINCT a.transportation_mode) DESC
+            LIMIT 10;
+        """
+        
         return self.db.query(query)

@@ -35,6 +35,7 @@ class Database:
         print("Connection to %s is closed" % self.connection.get_server_info())
 
     def query(self, statement: str, data: tuple | None = None) -> pd.DataFrame:
+        print("Running statement:\n", statement)
         self.cursor.execute(statement, data)
         result = self.cursor.fetchall()
         description = self.cursor.description
