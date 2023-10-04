@@ -15,12 +15,12 @@ class Migrator:
         """
         Wipe the database of all data and tables.
         """
-        print("Wiping TrackPoint")
-        self.database.cursor.execute("DROP TABLE IF EXISTS TrackPoint")
-        print("Wiping Activity")
-        self.database.cursor.execute("DROP TABLE IF EXISTS Activity")
-        print("Wiping User")
-        self.database.cursor.execute("DROP TABLE IF EXISTS User")
+        print("Wiping TrackPoints")
+        self.database.cursor.execute("DROP TABLE IF EXISTS TrackPoints")
+        print("Wiping Activities")
+        self.database.cursor.execute("DROP TABLE IF EXISTS Activities")
+        print("Wiping Users")
+        self.database.cursor.execute("DROP TABLE IF EXISTS Users")
         self.database.connection.commit()
         self.migrated = False
     
@@ -75,7 +75,6 @@ class Migrator:
         causing any errors.
         """
         dataset_dir = os.path.join(self.package_dir, "dataset")
-        data_dir = os.path.join(dataset_dir, "data")
         labeled_ids_filepath = os.path.join(dataset_dir, "labeled_ids.txt")
 
         # User IDs can be obtained from the directory names in the data directory.
@@ -92,15 +91,15 @@ class Migrator:
             data.append((user_id, has_labels))
         
         query = """
-            INSERT INTO User(id, has_labels) VALUES (%s, %s) ON DUPLICATE KEY UPDATE has_labels=VALUES(has_labels)
+            INSERT INTO Users(id, has_labels) VALUES (%s, %s) ON DUPLICATE KEY UPDATE has_labels=VALUES(has_labels)
         """
 
         self.database.cursor.executemany(query, data)
         self.database.connection.commit()
 
-        self.database.cursor.execute("SELECT * FROM User")
-        rows = self.database.cursor.fetchall()
-        print(f"Seeded {len(rows)} Users")
+        self.database.cursor.execute("SELECT Count(*) FROM Users")
+        count = self.database.cursor.fetchall()
+        print(f"Seeded {count} Users")
 
     def _get_user_ids(self) -> Iterable[str]:
         dataset_dir = os.path.join(self.package_dir, "dataset")
@@ -122,7 +121,7 @@ class Migrator:
         2. Update the activity records with the transportation modes with the power of SQL.
         """
         query = """
-            INSERT IGNORE INTO Activity(id, user_id, start_datetime, end_datetime) VALUES (%s, %s, %s, %s)
+            INSERT IGNORE INTO Activities(id, user_id, start_datetime, end_datetime) VALUES (%s, %s, %s, %s)
         """
 
         data = self._make_activity_data()
@@ -132,7 +131,7 @@ class Migrator:
 
         self._update_activity_transportation_modes()
 
-        self.database.cursor.execute("SELECT * FROM Activity")
+        self.database.cursor.execute("SELECT * FROM Activities")
         rows = self.database.cursor.fetchall()
         print(f"Seeded {len(rows)} Activities")
 
@@ -181,7 +180,7 @@ class Migrator:
         for id in labeled_ids:
             labels = self._get_labels_for_user_from_dataset(id)
             query = """
-                UPDATE Activity SET transportation_mode = %s WHERE user_id = %s AND start_datetime >= %s AND end_datetime <= %s
+                UPDATE Activities SET transportation_mode = %s WHERE user_id = %s AND start_datetime >= %s AND end_datetime <= %s
             """
             self.database.cursor.executemany(query, labels)
             self.database.connection.commit()
@@ -216,7 +215,7 @@ class Migrator:
     @timed
     def seed_track_points(self):
         query = """
-            INSERT INTO TrackPoint (activity_id, latitude, longitude, altitude, date_days, datetime) VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO TrackPoints (activity_id, latitude, longitude, altitude, date_days, datetime) VALUES (%s, %s, %s, %s, %s, %s)
         """
 
         data: list[tuple[str, str, str, str, str, str]] = []
@@ -246,9 +245,9 @@ class Migrator:
             print("✅")
 
         self.database.connection.commit()
-        self.database.cursor.execute("SELECT * FROM TrackPoint")
-        rows = self.database.cursor.fetchall()
-        print(f"Seeded {len(rows)} TrackPoints")
+        self.database.cursor.execute("SELECT Count(*) FROM TrackPoints")
+        count = self.database.cursor.fetchall()
+        print(f"Seeded {count} TrackPoints")
 
     def _get_activity_id(self, activity_file_name: str, user_id: str) -> str:
         return f"{user_id}-{activity_file_name.split('/')[-1].split('.')[0]}"

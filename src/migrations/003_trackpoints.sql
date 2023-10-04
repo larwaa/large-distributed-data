@@ -1,10 +1,10 @@
-CREATE TABLE IF NOT EXISTS TrackPoint (
+CREATE TABLE IF NOT EXISTS TrackPoints (
     -- ID of the track point
     id int NOT NULL AUTO_INCREMENT,
     PRIMARY KEY (id),
     -- Foreign key reference to the activity which this track point belongs to
     activity_id VARCHAR(50),
-    FOREIGN KEY (activity_id) REFERENCES Activity(id) ON DELETE CASCADE,
+    FOREIGN KEY (activity_id) REFERENCES Activities(id) ON DELETE CASCADE,
     -- Latitude of the track point
     latitude DOUBLE,
     -- Longitude of the track point (note: long is a reserved keyword)
