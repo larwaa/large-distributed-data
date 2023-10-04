@@ -1,4 +1,5 @@
 import mysql.connector as mysql
+import pandas as pd
 
 class Database:
     def __init__(
@@ -32,5 +33,17 @@ class Database:
         self.connection.close()
         print("\n-----------------------------------------------")
         print("Connection to %s is closed" % self.connection.get_server_info())
+
+    def query(self, statement: str, data: tuple | None = None) -> pd.DataFrame:
+        self.cursor.execute(statement, data)
+        result = self.cursor.fetchall()
+        description = self.cursor.description
+        
+        if (description is None):
+            return pd.DataFrame(result)
+
+        headers = [description[0] for description in description]
+        return pd.DataFrame(result, columns=headers)
+
         
 
