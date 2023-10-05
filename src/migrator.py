@@ -5,10 +5,11 @@ from timed import timed
 from typing import Iterable
 
 class Migrator:
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, track_point_limit: int = 2500):
         self.database = database
         self.package_dir = os.path.dirname(os.path.abspath(__file__))
         self.migrated = False
+        self.track_point_limit = track_point_limit
 
     @timed
     def wipe(self):
@@ -194,7 +195,7 @@ class Migrator:
                 labels.append((mode.strip(), id, start_datetime, end_datetime))
             return labels
 
-    def _get_activity_files_for_user(self, user_id: str, max_track_points: int = 2500) -> list[str]:
+    def _get_activity_files_for_user(self, user_id: str) -> list[str]:
         user_activity_dir = os.path.join(self.package_dir, "dataset", "data", user_id, "Trajectory")
         activity_files = os.listdir(user_activity_dir)
         activity_files_abs_path: list[str] = []
@@ -206,7 +207,7 @@ class Migrator:
                 # Skip the first 6 lines, as they are headers
                 track_points = f.readlines()[6:]
                 # Only record the activity if we have fewer than 2500 track points
-                if len(track_points) <= max_track_points:
+                if len(track_points) <= self.track_point_limit:
                     activity_files_abs_path.append(os.path.join(user_activity_dir, activity_file))
         
         return activity_files_abs_path
@@ -215,13 +216,15 @@ class Migrator:
     def create_indices(self):
         queries = [
             "ALTER TABLE TrackPoints ADD INDEX datetime_idx (datetime);",
-            "ALTER TABLE TrackPoints ADD SPATIAL INDEX (geom);"
-
+            # "ALTER TABLE Activities ADD INDEX start_datetime_idx (start_datetime);"
+            # "ALTER TABLE Activities ADD INDEX end_datetime_idx (end_datetime);"
+            # "ALTER TABLE TrackPoints ADD SPATIAL INDEX (geom);"
         ]
         for query in queries:
             print("Executing statement\n", query, end=" ")
             self.database.cursor.execute(query)
             self.database.connection.commit()
+            self.database.cursor.fetchall()
             print("✅")
     
     @timed

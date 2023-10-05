@@ -84,8 +84,16 @@ class Task:
     
 
     @timed
-    def task6(self) -> NoReturn:
-        raise NotImplementedError()
+    def task6(self):
+        query = """
+            SELECT a1.id as activity1_id, a2.id AS activity2_id
+            FROM Activities AS a1
+            JOIN Activities AS a2
+            ON a1.id < a2.id
+            AND a1.start_datetime = a2.start_datetime
+            AND a1.end_datetime = a2.end_datetime;
+        """
+        return self.db.query(query)
     
     @timed
     def task7a(self):
@@ -109,47 +117,122 @@ class Task:
     @timed
     def task8(self):
         query = """
-            SELECT tp1.id AS FirstId, tp2.id AS SecondId, tp1.datetime AS FirstDatetime, tp2.datetime AS SecondDatetime, TIME_TO_SEC(TIMEDIFF(tp2.datetime, tp1.datetime)) AS 'Δ Time (s)', ST_DISTANCE_SPHERE(tp1.geom, tp2.geom, 6378000) AS 'Distance (m)'
-            FROM TrackPoints AS tp1
-            INNER JOIN TrackPoints AS tp2
-                -- Exclude matching on trackpoints from the same activity
-                ON tp1.activity_id != tp2.activity_id
-                    -- Exclude matching on identical trackpoints
-                    AND tp1.id != tp2.id
-                    AND tp1.datetime <= tp2.datetime
-                    -- Find all track points that are close in time
-                    AND TIME_TO_SEC(TIMEDIFF(tp2.datetime, tp1.datetime)) <= 30
-                    -- Out of these, find track points that are witihin 50 meters of each other, using a minimum
-                    -- bounding rectangle
-                    -- e.g.
-                    -- All points inside this rectangle, where we have sides of 50 meters
-                    --    50 m
-                    -- ---------
-                    -- |       |
-                    -- |   .   |  50 m
-                    -- |       |
-                    -- ---------
-                    -- 
-                    -- After making a first pass (which is very efficient as we use the spatial index of geom)
-                    -- we find the ones that are actually inside the circle.
-                    AND MBRContains(ST_BUFFER(tp1.geom, 50), tp2.geom)
-                    -- After a first pass with MBR, filter down to the ones that are actually within 50 meters.
-                    AND ST_DISTANCE_SPHERE(tp1.geom, tp2.geom, 6378000) <= 50
-            LIMIT 20
+            WITH user_pairs AS (
+                SELECT DISTINCT a1.user_id AS user_id1, a2.user_id AS user_id2
+                FROM Activities a1
+                -- Make a combination of all activities
+                JOIN Activities a2 ON a1.id < a2.id
+                    -- We restrict the search space to activities that overlap with a 30 second margin
+                    -- to limit the number of track point comparisons that we have to perform.
+                    -- Activities that do not overlap within at least a 30 second margin
+                    -- should not contain track points that are within 30 seconds of each other.
+                    AND TIME_TO_SEC(TIMEDIFF(a2.start_datetime, a1.end_datetime)) <= 30
+                    AND TIME_TO_SEC(TIMEDIFF(a1.start_datetime, a2.end_datetime)) <= 30
+                    -- Avoid comparing a user to themselves
+                    AND a1.user_id < a2.user_id
+                -- Join in the track points on the two sets of activities
+                JOIN TrackPoints p1 ON p1.activity_id = a1.id
+                JOIN TrackPoints p2 ON p2.activity_id = a2.id
+                -- Then, after restricting the search space, we check for
+                -- track points that are close both in time
+                WHERE ABS(TIME_TO_SEC(TIMEDIFF(p1.datetime, p2.datetime))) <= 30
+                -- and in space
+                AND ST_Distance_Sphere(p1.geom, p2.geom) <= 50
+            )
+            -- Finally, we select the list of distinct user_ids of users
+            -- who have been near other users in space and time
+            SELECT DISTINCT user_id
+            FROM (
+                -- Combine the two columns of user ID pairs into a single column of user IDs
+                -- to find the total count of unique users who have been near others
+                SELECT user_id1 AS user_id FROM user_pairs
+                UNION
+                SELECT user_id2 FROM user_pairs
+            ) AS user_ids
+            -- Order the results by ascending ID
+            ORDER BY user_id ASC;
         """
         return self.db.query(query)
     
     @timed
-    def task9(self) -> NoReturn:
-        raise NotImplementedError()
+    def task9(self):
+        """
+        Find the top 15 users who have gained the most altitude meters.
+
+        Output should be a table with (id, total meters gained per user).
+        Remember that some altitude-values are invalid
+
+        Interpreting this as total gain, which means we don't subtract altitude
+        when the user is descending, only add it when they're ascending.
+        """
+        query = """
+            SELECT a1.user_id, SUM(tp2.altitude - tp1.altitude) AS 'Altitude Gain'
+            FROM TrackPoints tp1
+            JOIN TrackPoints tp2 ON tp2.id = tp1.id + 1
+                AND tp2.altitude > tp1.altitude
+                AND tp1.activity_id = tp2.activity_id
+            JOIN Activities a1 ON a1.id = tp1.activity_id
+            GROUP BY a1.user_id
+            ORDER BY SUM(tp2.altitude - tp1.altitude) DESC
+            LIMIT 15;
+        """
+        return self.db.query(query)
     
     @timed
-    def task10(self) -> NoReturn:
-        raise NotImplementedError()
+    def task10(self):
+        """
+        Find the users that have traveled the longest total distance in one day for each transportation mode.
+
+        TODO:
+        Refine distance calculations
+        Should include:
+        - distance covered by multiple activities in the same day
+        - distance covered by activities that span multiple days, but where you include the travel time up until the end of the day (?)
+        
+        """
+        query = """
+            WITH distances AS (
+                SELECT a1.user_id AS user_id, a1.transportation_mode AS transportation_mode, ROUND(SUM(ST_DISTANCE_SPHERE(tp1.geom, tp2.geom)) / 1000, 2) AS distance
+                FROM Activities a1
+                JOIN TrackPoints tp1 ON tp1.activity_id = a1.id
+                JOIN TrackPoints tp2 ON tp2.id = tp1.id + 1 
+                    AND tp1.activity_id = tp2.activity_id
+                WHERE a1.transportation_mode != ""
+                AND DATE(a1.start_datetime) = DATE(a1.end_datetime)
+                GROUP BY a1.user_id, a1.transportation_mode, a1.id
+                ORDER BY distance DESC
+            )
+            SELECT max.transportation_mode AS 'Transportation Mode', max.distance AS 'Max Distance (km)', MAX(d2.user_id) AS UserID
+            FROM (
+                SELECT d1.transportation_mode, MAX(d1.distance) AS distance
+                FROM distances d1
+                GROUP BY d1.transportation_mode
+            ) AS max
+            LEFT JOIN distances d2 ON d2.distance = max.distance
+            GROUP BY max.transportation_mode;
+        """
+
+        return self.db.query(query)
     
     @timed
-    def task11(self) -> NoReturn:
-        raise NotImplementedError()
+    def task11(self):
+        """
+        Find all users who have invalid activities, and the number of invalid activities per user
+        An invalid activity is defined as an activity with consecutive trackpoints where the timestamps
+        deviate with at least 5 minutes.
+        """
+        query = """
+            SELECT a1.user_id as UserID, COUNT(DISTINCT a1.id) as '# Invalid Activities'
+            FROM Activities a1
+            JOIN TrackPoints p1 ON a1.id = p1.activity_id
+            JOIN TrackPoints p2 ON p2.id = p1.id + 1
+                AND p2.activity_id = p1.activity_id
+            WHERE ABS(TIME_TO_SEC(TIMEDIFF(p1.datetime, p2.datetime))) >= 5 * 60
+            GROUP BY a1.user_id
+            ORDER BY COUNT(DISTINCT a1.id) DESC;
+        """
+
+        return self.db.query(query)
     
     @timed
     def task12(self) -> NoReturn:

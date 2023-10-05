@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS Activities (
     transportation_mode VARCHAR(255) NOT NULL DEFAULT "",
     -- Start datetime for this activity
     start_datetime DATETIME,
+    INDEX (start_datetime),
     -- End datetime for this activity
-    end_datetime DATETIME
+    end_datetime DATETIME,
+    INDEX (end_datetime)
 );
