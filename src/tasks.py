@@ -1,6 +1,6 @@
 from database import Database
 from timed import timed
-from typing import NoReturn
+
 
 class Task:
     def __init__(self, db: Database) -> None:
