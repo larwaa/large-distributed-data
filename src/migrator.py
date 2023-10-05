@@ -211,16 +211,27 @@ class Migrator:
         
         return activity_files_abs_path
 
+    @timed
+    def create_indices(self):
+        queries = [
+            "ALTER TABLE TrackPoints ADD INDEX datetime_idx (datetime);",
+            "ALTER TABLE TrackPoints ADD SPATIAL INDEX (geom);"
+
+        ]
+        for query in queries:
+            print("Executing statement\n", query, end=" ")
+            self.database.cursor.execute(query)
+            self.database.connection.commit()
+            print("✅")
     
     @timed
     def seed_track_points(self):
         query = """
-            INSERT INTO TrackPoints (activity_id, latitude, longitude, altitude, date_days, datetime) VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO TrackPoints (activity_id, geom, altitude, date_days, datetime) VALUES (%s, ST_GeomFromText(%s, 4326), %s, %s, %s)
         """
 
-        data: list[tuple[str, str, str, str, str, str]] = []
+        data: list[tuple[str, str, str, str, str]] = []
 
-        data_dir = os.path.join(self.package_dir, "dataset", "data")
         user_ids = self._get_user_ids()
 
         for user_id in user_ids:
@@ -228,16 +239,32 @@ class Migrator:
             activity_files = self._get_activity_files_for_user(user_id)
             for activity_file in activity_files:
                 activity_id = self._get_activity_id(activity_file, user_id)
+                # query = f"""
+                #     LOAD DATA INFILE {activity_file}
+                #     REPLACE
+                #     INTO TABLE TrackPoints
+                #     IGNORE 6 LINES
+                #     FIELDS TERMINATED BY ','
+                #     (@col1, @col2, @col3, @col4, @col5, @col6, @col7)
+                #     SET 
+                #         activity_id = {activity_id}
+                #         geom = ST_GeomFromText('Point(@col1 @col2)')
+                #         altitude = @col4
+                #         datetime = TIMESTAMP(@col6, @col7)
+                # """
                 with open(activity_file, "r") as f:
                     track_points = f.readlines()[6:]
                     for track_point in track_points:
                         latitude, longitude, _, altitude, date_days, date, time = track_point.split(",")
+                        
                         datetime = f"{date} {time.strip()}"
-                        data.append((activity_id, latitude, longitude, altitude, date_days, datetime))
+                        geom = f"Point({latitude} {longitude})"
+                        data.append((activity_id, geom, altitude, date_days, datetime))
 
             print("✅")
 
-        batch_size = 120_000
+        batch_size = 2**18
+        print(batch_size)
         print(data[:20])
         for i in range(0, len(data), batch_size):
             print(f"Seeding batch: {i // batch_size} of {len(data) // batch_size}", end="\t")
@@ -245,6 +272,7 @@ class Migrator:
             print("✅")
 
         self.database.connection.commit()
+
         self.database.cursor.execute("SELECT Count(*) FROM TrackPoints")
         count = self.database.cursor.fetchall()
         print(f"Seeded {count} TrackPoints")

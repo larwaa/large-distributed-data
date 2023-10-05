@@ -109,17 +109,33 @@ class Task:
     @timed
     def task8(self):
         query = """
-            SELECT tp1.id AS FirstId, tp2.id AS SecondId, tp1.datetime AS FirstDatetime, tp2.datetime AS SecondDatetime, ABS(TIME_TO_SEC(TIMEDIFF(tp1.datetime, tp2.datetime))) AS 'Δ Time (s)', ST_DISTANCE_SPHERE(POINT(tp1.longitude, tp1.latitude), POINT(tp2.longitude, tp2.latitude), 6378000) AS 'Distance (m)'
+            SELECT tp1.id AS FirstId, tp2.id AS SecondId, tp1.datetime AS FirstDatetime, tp2.datetime AS SecondDatetime, TIME_TO_SEC(TIMEDIFF(tp2.datetime, tp1.datetime)) AS 'Δ Time (s)', ST_DISTANCE_SPHERE(tp1.geom, tp2.geom, 6378000) AS 'Distance (m)'
             FROM TrackPoints AS tp1
-            CROSS JOIN TrackPoints AS tp2
-            -- Exclude matching on trackpoints from the same activity
-            WHERE tp1.activity_id != tp2.activity_id
-                -- Exclude matching on identical trackpoints
-                AND tp1.id != tp2.id
-                -- Find all track points that are close in time
-                AND ABS(TIME_TO_SEC(TIMEDIFF(tp1.datetime, tp2.datetime))) <= 30
-                -- Out of these, find track points that are witihin 50 metres of each other
-                AND ST_DISTANCE_SPHERE(POINT(tp1.longitude, tp1.latitude), POINT(tp2.longitude, tp2.latitude), 6378000) <= 50
+            INNER JOIN TrackPoints AS tp2
+                -- Exclude matching on trackpoints from the same activity
+                ON tp1.activity_id != tp2.activity_id
+                    -- Exclude matching on identical trackpoints
+                    AND tp1.id != tp2.id
+                    AND tp1.datetime <= tp2.datetime
+                    -- Find all track points that are close in time
+                    AND TIME_TO_SEC(TIMEDIFF(tp2.datetime, tp1.datetime)) <= 30
+                    -- Out of these, find track points that are witihin 50 meters of each other, using a minimum
+                    -- bounding rectangle
+                    -- e.g.
+                    -- All points inside this rectangle, where we have sides of 50 meters
+                    --    50 m
+                    -- ---------
+                    -- |       |
+                    -- |   .   |  50 m
+                    -- |       |
+                    -- ---------
+                    -- 
+                    -- After making a first pass (which is very efficient as we use the spatial index of geom)
+                    -- we find the ones that are actually inside the circle.
+                    AND MBRContains(ST_BUFFER(tp1.geom, 50), tp2.geom)
+                    -- After a first pass with MBR, filter down to the ones that are actually within 50 meters.
+                    AND ST_DISTANCE_SPHERE(tp1.geom, tp2.geom, 6378000) <= 50
+            LIMIT 20
         """
         return self.db.query(query)
     
