@@ -13,7 +13,7 @@ class Task:
         (after it is inserted into the database).
         """
 
-        count_query = """
+        statement = """
         SELECT
             (SELECT Count(*) AS UsersCount FROM Users) AS '# Users',
             (SELECT Count(*) AS UsersCount FROM Activities) AS '# Activities',
@@ -21,11 +21,11 @@ class Task:
         """
 
 
-        return self.db.query(count_query)
+        return self.db.query(statement)
     
     @timed
     def task2(self):
-        query = """
+        statement = """
             SELECT CAST(ROUND(AVG(count), 0) AS SIGNED) AS Avg, MAX(count) AS Max, MIN(count) AS Min
             FROM (
                 SELECT COUNT(*) AS count
@@ -36,11 +36,11 @@ class Task:
             ) as counts;
         """
 
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task3(self):
-        query = """
+        statement = """
             SELECT UserId, ActivityCount
             FROM
                 (
@@ -53,11 +53,11 @@ class Task:
             ORDER BY ActivityCount DESC
             LIMIT 15;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task4(self):
-        query = """
+        statement = """
             SELECT DISTINCT u.id AS UserId
             FROM Users AS u
             LEFT JOIN Activities AS a
@@ -65,11 +65,11 @@ class Task:
             WHERE a.transportation_mode LIKE 'Bus';
         """
 
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task5(self):
-        query = """
+        statement = """
             SELECT DISTINCT u.id AS UserID, Count(DISTINCT a.transportation_mode) as '# Transportation Modes', GROUP_CONCAT(DISTINCT a.transportation_mode SEPARATOR ', ') AS 'Transportation Modes'
             FROM Activities AS a
             LEFT JOIN Users AS u
@@ -80,12 +80,12 @@ class Task:
             LIMIT 10;
         """
         
-        return self.db.query(query)
+        return self.db.query(statement)
     
 
     @timed
     def task6(self):
-        query = """
+        statement = """
             SELECT a1.id as activity1_id, a2.id AS activity2_id
             FROM Activities AS a1
             JOIN Activities AS a2
@@ -93,30 +93,30 @@ class Task:
             AND a1.start_datetime = a2.start_datetime
             AND a1.end_datetime = a2.end_datetime;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task7a(self):
-        query = """
+        statement = """
             SELECT COUNT(DISTINCT user_id) as '# Users With Overnight Activities'
             FROM Activities
             WHERE DATEDIFF(end_datetime, start_datetime) = 1;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed 
     def task7b(self):
-        query = """
+        statement = """
             SELECT transportation_mode AS 'Transportation Mode', user_id AS UserId, TIMEDIFF(end_datetime, start_datetime) as Duration
             FROM Activities
             WHERE DATEDIFF(end_datetime, start_datetime) = 1;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
 
     
     @timed
     def task8(self):
-        query = """
+        statement = """
             WITH user_pairs AS (
                 SELECT DISTINCT a1.user_id AS user_id1, a2.user_id AS user_id2
                 FROM Activities a1
@@ -152,7 +152,7 @@ class Task:
             -- Order the results by ascending ID
             ORDER BY user_id ASC;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task9(self):
@@ -165,7 +165,7 @@ class Task:
         Interpreting this as total gain, which means we don't subtract altitude
         when the user is descending, only add it when they're ascending.
         """
-        query = """
+        statement = """
             SELECT a1.user_id, SUM(tp2.altitude - tp1.altitude) AS 'Altitude Gain'
             FROM TrackPoints tp1
             JOIN TrackPoints tp2 ON tp2.id = tp1.id + 1
@@ -176,7 +176,7 @@ class Task:
             ORDER BY SUM(tp2.altitude - tp1.altitude) DESC
             LIMIT 15;
         """
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task10(self):
@@ -190,7 +190,7 @@ class Task:
         - distance covered by activities that span multiple days, but where you include the travel time up until the end of the day (?)
         
         """
-        query = """
+        statement = """
             WITH distances AS (
                 SELECT a1.user_id AS user_id, a1.transportation_mode AS transportation_mode, ROUND(SUM(ST_DISTANCE_SPHERE(tp1.geom, tp2.geom)) / 1000, 2) AS distance
                 FROM Activities a1
@@ -212,7 +212,7 @@ class Task:
             GROUP BY max.transportation_mode;
         """
 
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
     def task11(self):
@@ -221,7 +221,7 @@ class Task:
         An invalid activity is defined as an activity with consecutive trackpoints where the timestamps
         deviate with at least 5 minutes.
         """
-        query = """
+        statement = """
             SELECT a1.user_id as UserID, COUNT(DISTINCT a1.id) as '# Invalid Activities'
             FROM Activities a1
             JOIN TrackPoints p1 ON a1.id = p1.activity_id
@@ -232,9 +232,36 @@ class Task:
             ORDER BY COUNT(DISTINCT a1.id) DESC;
         """
 
-        return self.db.query(query)
+        return self.db.query(statement)
     
     @timed
-    def task12(self) -> NoReturn:
-        raise NotImplementedError()
+    def task12(self):
+        """
+        Find all users who have registered transportation_mode and their most used transportation_mode.
+        The answer should be on format (user_id, most_used_transportation_mode) sorted on user_id
+        Some users may have the same number of activities tagged with e.g. walk and car. In this case it is up to you 
+        to decide which transportation mode to include in your answer (choose one).
+
+        Tie breaks: reverse lexicographical order because walking is the best :)
+        """
+
+        statement = """
+        WITH counts AS (
+            SELECT user_id, transportation_mode, COUNT(transportation_mode) as count
+            FROM Activities
+            WHERE transportation_mode != ""
+            GROUP BY user_id, transportation_mode
+            ORDER BY user_id, COUNT(transportation_mode) DESC
+        )
+        SELECT max.user_id AS user_id, MAX(c2.transportation_mode) AS most_used_transportation_mode
+        FROM (
+            SELECT c1.user_id, MAX(c1.count) AS count
+            FROM counts c1
+            GROUP BY c1.user_id
+        ) AS max
+        LEFT JOIN counts c2 ON max.count = c2.count
+        GROUP BY max.user_id;
+        """
+
+        return self.db.query(statement)
     
