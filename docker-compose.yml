@@ -11,3 +11,15 @@ services:
       MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
+
+  test-db:
+    image: mysql:8.1.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: mysql
+      MYSQL_USER: mysql
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+    command: --innodb-buffer-pool-size=4000M
