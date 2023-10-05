@@ -39,6 +39,7 @@ class Database:
         self.cursor.execute(statement, data)
         result = self.cursor.fetchall()
         description = self.cursor.description
+        print("Query Finished")
         
         if (description is None):
             return pd.DataFrame(result)

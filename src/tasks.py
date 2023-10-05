@@ -1,5 +1,6 @@
 from database import Database
 from timed import timed
+from typing import NoReturn
 
 class Task:
     def __init__(self, db: Database) -> None:
@@ -80,3 +81,61 @@ class Task:
         """
         
         return self.db.query(query)
+    
+
+    @timed
+    def task6(self) -> NoReturn:
+        raise NotImplementedError()
+    
+    @timed
+    def task7a(self):
+        query = """
+            SELECT COUNT(DISTINCT user_id) as '# Users With Overnight Activities'
+            FROM Activities
+            WHERE DATEDIFF(end_datetime, start_datetime) = 1;
+        """
+        return self.db.query(query)
+    
+    @timed 
+    def task7b(self):
+        query = """
+            SELECT transportation_mode AS 'Transportation Mode', user_id AS UserId, TIMEDIFF(end_datetime, start_datetime) as Duration
+            FROM Activities
+            WHERE DATEDIFF(end_datetime, start_datetime) = 1;
+        """
+        return self.db.query(query)
+
+    
+    @timed
+    def task8(self):
+        query = """
+            SELECT tp1.id AS FirstId, tp2.id AS SecondId, tp1.datetime AS FirstDatetime, tp2.datetime AS SecondDatetime, ABS(TIME_TO_SEC(TIMEDIFF(tp1.datetime, tp2.datetime))) AS 'Δ Time (s)', ST_DISTANCE_SPHERE(POINT(tp1.longitude, tp1.latitude), POINT(tp2.longitude, tp2.latitude), 6378000) AS 'Distance (m)'
+            FROM TrackPoints AS tp1
+            CROSS JOIN TrackPoints AS tp2
+            -- Exclude matching on trackpoints from the same activity
+            WHERE tp1.activity_id != tp2.activity_id
+                -- Exclude matching on identical trackpoints
+                AND tp1.id != tp2.id
+                -- Find all track points that are close in time
+                AND ABS(TIME_TO_SEC(TIMEDIFF(tp1.datetime, tp2.datetime))) <= 30
+                -- Out of these, find track points that are witihin 50 metres of each other
+                AND ST_DISTANCE_SPHERE(POINT(tp1.longitude, tp1.latitude), POINT(tp2.longitude, tp2.latitude), 6378000) <= 50
+        """
+        return self.db.query(query)
+    
+    @timed
+    def task9(self) -> NoReturn:
+        raise NotImplementedError()
+    
+    @timed
+    def task10(self) -> NoReturn:
+        raise NotImplementedError()
+    
+    @timed
+    def task11(self) -> NoReturn:
+        raise NotImplementedError()
+    
+    @timed
+    def task12(self) -> NoReturn:
+        raise NotImplementedError()
+    
