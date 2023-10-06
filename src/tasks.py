@@ -58,11 +58,10 @@ class Task:
     @timed
     def task4(self):
         statement = """
-            SELECT DISTINCT u.id AS UserId
-            FROM Users AS u
-            LEFT JOIN Activities AS a
-                ON u.id = a.user_id
-            WHERE a.transportation_mode LIKE 'Bus';
+            SELECT DISTINCT user_id AS UserId
+            FROM Activities
+            WHERE transportation_mode LIKE 'Bus'
+            ORDER BY user_id;
         """
 
         return self.db.query(statement)
@@ -90,6 +89,7 @@ class Task:
             FROM Activities AS a1
             JOIN Activities AS a2
             ON a1.id < a2.id
+            AND a1.user_id = a2.user_id
             AND a1.start_datetime = a2.start_datetime
             AND a1.end_datetime = a2.end_datetime;
         """
@@ -109,7 +109,8 @@ class Task:
         statement = """
             SELECT transportation_mode AS 'Transportation Mode', user_id AS UserId, TIMEDIFF(end_datetime, start_datetime) as Duration
             FROM Activities
-            WHERE DATEDIFF(end_datetime, start_datetime) = 1;
+            WHERE DATEDIFF(end_datetime, start_datetime) = 1
+            LIMIT 10;
         """
         return self.db.query(statement)
 
@@ -172,6 +173,8 @@ class Task:
                 AND tp2.altitude > tp1.altitude
                 AND tp1.activity_id = tp2.activity_id
             JOIN Activities a1 ON a1.id = tp1.activity_id
+            WHERE tp1.altitude != -777
+            AND tp2.altitude != -777
             GROUP BY a1.user_id
             ORDER BY SUM(tp2.altitude - tp1.altitude) DESC
             LIMIT 15;
@@ -185,10 +188,6 @@ class Task:
 
         TODO:
         Refine distance calculations
-        Should include:
-        - distance covered by multiple activities in the same day
-        - distance covered by activities that span multiple days, but where you include the travel time up until the end of the day (?)
-        
         """
         statement = """
             WITH distances AS (
@@ -198,8 +197,7 @@ class Task:
                 JOIN TrackPoints tp2 ON tp2.id = tp1.id + 1 
                     AND tp1.activity_id = tp2.activity_id
                 WHERE a1.transportation_mode != ""
-                AND DATE(a1.start_datetime) = DATE(a1.end_datetime)
-                GROUP BY a1.user_id, a1.transportation_mode, a1.id
+                GROUP BY a1.user_id, a1.transportation_mode, DATE(tp1.datetime)
                 ORDER BY distance DESC
             )
             SELECT max.transportation_mode AS 'Transportation Mode', max.distance AS 'Max Distance (km)', MAX(d2.user_id) AS UserID
@@ -229,7 +227,8 @@ class Task:
                 AND p2.activity_id = p1.activity_id
             WHERE ABS(TIME_TO_SEC(TIMEDIFF(p1.datetime, p2.datetime))) >= 5 * 60
             GROUP BY a1.user_id
-            ORDER BY COUNT(DISTINCT a1.id) DESC;
+            ORDER BY COUNT(DISTINCT a1.id) DESC
+            LIMIT 10;
         """
 
         return self.db.query(statement)
@@ -260,7 +259,8 @@ class Task:
             GROUP BY c1.user_id
         ) AS max
         LEFT JOIN counts c2 ON max.count = c2.count
-        GROUP BY max.user_id;
+        GROUP BY max.user_id
+        LIMIT 10;
         """
 
         return self.db.query(statement)
