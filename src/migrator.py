@@ -216,9 +216,6 @@ class Migrator:
     def create_indices(self):
         queries = [
             "ALTER TABLE TrackPoints ADD INDEX datetime_idx (datetime);",
-            # "ALTER TABLE Activities ADD INDEX start_datetime_idx (start_datetime);"
-            # "ALTER TABLE Activities ADD INDEX end_datetime_idx (end_datetime);"
-            # "ALTER TABLE TrackPoints ADD SPATIAL INDEX (geom);"
         ]
         for query in queries:
             print("Executing statement\n", query, end=" ")
