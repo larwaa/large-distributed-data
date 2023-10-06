@@ -26,14 +26,14 @@ class Task:
     @timed
     def task2(self):
         statement = """
-            SELECT CAST(ROUND(AVG(count), 0) AS SIGNED) AS Avg, MAX(count) AS Max, MIN(count) AS Min
-            FROM (
-                SELECT COUNT(*) AS count
-                FROM TrackPoints as tp
-                LEFT JOIN Activities as a
-                    ON tp.activity_id = a.id
-                GROUP BY a.user_id
-            ) as counts;
+            SELECT user_id, MIN(trackpoint_id_count) AS min_trackpoints, MAX(trackpoint_id_count) AS max_trackpoints, AVG(trackpoint_id_count) AS average_trackpoints
+                FROM (
+                    SELECT user_id, a.id AS activity_id, COUNT(tp.id) AS trackpoint_id_count
+                    FROM TrackPoints tp
+                    JOIN Activities a ON tp.activity_id = a.id
+                    GROUP BY user_id, activity_id
+                ) AS subquery
+                GROUP BY user_id;
         """
 
         return self.db.query(statement)
