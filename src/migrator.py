@@ -181,7 +181,7 @@ class Migrator:
         for id in labeled_ids:
             labels = self._get_labels_for_user_from_dataset(id)
             query = """
-                UPDATE Activities SET transportation_mode = %s WHERE user_id = %s AND start_datetime >= %s AND end_datetime <= %s
+                UPDATE Activities SET transportation_mode = %s WHERE user_id = %s AND start_datetime = %s AND end_datetime = %s
             """
             self.database.cursor.executemany(query, labels)
             self.database.connection.commit()
@@ -242,19 +242,6 @@ class Migrator:
             activity_files = self._get_activity_files_for_user(user_id)
             for activity_file in activity_files:
                 activity_id = self._get_activity_id(activity_file, user_id)
-                # query = f"""
-                #     LOAD DATA INFILE {activity_file}
-                #     REPLACE
-                #     INTO TABLE TrackPoints
-                #     IGNORE 6 LINES
-                #     FIELDS TERMINATED BY ','
-                #     (@col1, @col2, @col3, @col4, @col5, @col6, @col7)
-                #     SET 
-                #         activity_id = {activity_id}
-                #         geom = ST_GeomFromText('Point(@col1 @col2)')
-                #         altitude = @col4
-                #         datetime = TIMESTAMP(@col6, @col7)
-                # """
                 with open(activity_file, "r") as f:
                     track_points = f.readlines()[6:]
                     for track_point in track_points:
