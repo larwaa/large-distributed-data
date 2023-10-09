@@ -85,7 +85,7 @@ class Task:
             # Only include user_id
             {"user_id": 1},
         ).distinct("user_id")
-        return pd.DataFrame(list(res), columns=["Users taken taxi"])
+        return pd.DataFrame(list(res), columns=["Users Who Have Taken a Taxi"])
 
     @timed
     def task5(self):
@@ -114,6 +114,10 @@ class Task:
 
 
 def main():
+    """
+    Run through all tasks, saving the answers to disk.
+    """
+
     from database import CustomDbConnector
 
     db_conn = CustomDbConnector()
@@ -123,6 +127,7 @@ def main():
     task.task2().to_csv("task2.csv")
     task.task3().to_csv("task3.csv")
     task.task4().to_csv("task4.csv")
+    task.task5().to_csv("task5.csv")
 
 
 if __name__ == "__main__":
