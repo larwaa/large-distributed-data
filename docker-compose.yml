@@ -23,3 +23,13 @@ services:
     ports:
       - "3307:3306"
     command: --innodb-buffer-pool-size=4000M
+
+  mongo:
+    image: mongo:7.0.1
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: mongo
+    ports:
+      - "27017:27017"
