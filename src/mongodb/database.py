@@ -29,7 +29,8 @@ class TrackPoint(TypedDict):
 
 class Database(pydb.Database):
     """
-    Wrapper around pymongo.database to get more accurate type hints for our domain
+    Wrapper around pymongo.database to get more accurate type hints for our domain.
+    No behavioral difference, only typing.
     """
     @property
     def users(self) -> Collection[User]:
@@ -64,8 +65,9 @@ class CustomDbConnector(DbConnector):
     """
     Simple wrapper around DbConnector to get more accurate type hints when working
     with pymongo, and adjustments to connection configuration to support Docker out of the box
+
+    The only behavioral difference is the constructor, otherwise, it's just type hints which do not affect runtime.
     """
-    collections = ["users", "activities", "track_points"]
     db: Database
 
     def __init__(self, host: str = "localhost", database: str = "mongo", user: str = "root", password: str = "password", port: int = 27017, connection_opts: str = "?authSource=admin"):
