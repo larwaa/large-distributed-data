@@ -272,8 +272,6 @@ class Importer:
         print("Importing track points")
         self._import(track_points_df, "track_points")
 
-        self.imported = True
-
     def create_collections(self):
         """
         Create the collections for the project
@@ -287,7 +285,15 @@ class Importer:
         """
         for collection in self.collections:
             self.db.drop_collection(collection)
-        self.imported = False
+
+    def user_sample(self, limit: int = 10):
+        return pd.DataFrame(list(self.db.users.find().limit(limit)))
+
+    def activity_sample(self, limit: int = 10):
+        return pd.DataFrame(list(self.db.activities.find().limit(limit)))
+
+    def track_point_sample(self, limit: int = 10):
+        return pd.DataFrame(list(self.db.track_points.find().limit(limit)))
 
 
 def main():
