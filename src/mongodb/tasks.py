@@ -112,6 +112,54 @@ class Task:
         )
         return pd.DataFrame(list(res))
 
+    @timed
+    def task11(self):
+        res = self.db.activities.aggregate(
+            [
+                {
+                    # Exclude activities where transportation_mode is ""
+                    "$match": {"transportation_mode": {"$ne": ""}}
+                },
+                {
+                    # Group by user_id and transportation_mode, and count occurances
+                    "$group": {
+                        "_id": {
+                            "user_id": "$user_id",
+                            "transportation_mode": "$transportation_mode",
+                        },
+                        "count": {"$count": {}},
+                    }
+                },
+                {
+                    # Group by user_id, and select first occurance of transportation_mode with max count
+                    "$group": {
+                        # Group by user_id
+                        "_id": "$_id.user_id",
+                        # Select max count of transportation mode
+                        "transportation_mode_count": {"$max": "$count"},
+                        # Tie break first mode of transportation
+                        "transportation_mode": {"$first": "$_id.transportation_mode"},
+                    }
+                },
+                {
+                    # Sort on user_id, ascending
+                    "$sort": {
+                        "_id": 1,
+                    }
+                },
+                {
+                    # Exclude the _id column, return user_id, transportation_mode, and transportation_mode_count
+                    "$project": {
+                        "_id": 0,
+                        "user_id": "$_id",
+                        "transportation_mode": "$transportation_mode",
+                        "transportation_mode_count": "$transportation_mode_count",
+                    }
+                },
+            ]
+        )
+        return pd.DataFrame((list(res)))
+
 
 def main():
     """
