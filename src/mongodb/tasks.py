@@ -9,10 +9,6 @@ class Task:
     def __init__(self, db: "Database"):
         self.db = db
 
-
-    
-
-
     @timed
     def task1(self):
         """
@@ -117,78 +113,51 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res))
-    
+
     @timed
     def task6a(self):
         """
-        6. 
+        6.
             a) Find the year with the most activities.
         """
 
         res = self.db.activities.aggregate(
             [
-            {"$project": {"year": { "$year": "$start_datetime" }}},
-
-            {"$group": {"_id": "$year", "activityCount": { "$sum": 1 }}},
-
-            {"$project": {"year": "$_id",  "activityCount": 1, "_id": 0}},
-                
-            {"$sort": {"activityCount": -1}},
-
-            {"$limit": 1}
-
+                {"$project": {"year": {"$year": "$start_datetime"}}},
+                {"$group": {"_id": "$year", "activityCount": {"$sum": 1}}},
+                {"$project": {"year": "$_id", "activityCount": 1, "_id": 0}},
+                {"$sort": {"activityCount": -1}},
+                {"$limit": 1},
             ]
         )
         return pd.DataFrame(list(res))
 
-
     def task6b(self):
         """
-        6. 
+        6.
             b) Is this also the year with most recorded hours?
         """
-        res = self.db.activities.aggregate([
-          
-        {"$project": {
-        "year": { "$year": "$start_datetime" },
-        "duration": { "$divide": [{ "$subtract": ["$end_datetime", "$start_datetime"] }, 3600000] }
-        }},
-        {"$group": {
-            "_id": "$year",
-            "totalHours": { "$sum": "$duration" }
-        }},
-        {"$sort": {"totalHours": -1}},
-        {"$project": {"year": "$_id",  "totalHours": 1, "_id": 0}},
-        {"$limit": 1}
-
-        ])
+        res = self.db.activities.aggregate(
+            [
+                {
+                    "$project": {
+                        "year": {"$year": "$start_datetime"},
+                        "duration": {
+                            "$divide": [
+                                {"$subtract": ["$end_datetime", "$start_datetime"]},
+                                3600000,
+                            ]
+                        },
+                    }
+                },
+                {"$group": {"_id": "$year", "totalHours": {"$sum": "$duration"}}},
+                {"$sort": {"totalHours": -1}},
+                {"$project": {"year": "$_id", "totalHours": 1, "_id": 0}},
+                {"$limit": 1},
+            ]
+        )
 
         return pd.DataFrame(list(res))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     @timed
     def task9(self):
