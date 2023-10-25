@@ -189,29 +189,6 @@ class Task:
 
 
 
-#     [
-#     {
-#         "$project": {
-#             "year": { "$year": "$start_datetime" },
-#             "duration": { "$divide": [{ "$subtract": ["$end_datetime", "$start_datetime"] }, 3600000] }
-#         }
-#     },
-#     {
-#         "$group": {
-#             "_id": "$year",
-#             "activityCount": { "$sum": 1 },
-#             "totalHours": { "$sum": "$duration" }
-#         }
-#     },
-#     {
-#         "$sort": {"activityCount": -1}  # Sort by activityCount in descending order
-#     },
-#     {
-#         "$limit": 1  # Limit to the top result (year with the most activities)
-#     }
-# ]
-
-        
 
     @timed
     def task10(self, _type: Literal["box", "circle"] = "box"):
