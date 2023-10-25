@@ -1,6 +1,8 @@
 import pandas as pd
 from database import Database
 from timed import timed
+import math
+from typing import Literal
 
 
 class Task:
@@ -113,7 +115,120 @@ class Task:
         return pd.DataFrame(list(res))
 
     @timed
+    def task10(self, _type: Literal["box", "circle"] = "box"):
+        """
+        Find the users who have tracked an activity in the Forbidden City of Beijing.
+        In this question you can consider the Forbidden City to have
+        coordinates that correspond to: lat 39.916, lon 116.397.
+
+        The size of the forbidden city is approximately 72 000 m^2, so
+        we say that an activity has been in the Forbidden City of Beijing if it
+        has at least one trackpoint within sqrt(72 000 / pi) of the coordinate (39.916, 116.397).
+        Since the forbidden city is quite square, we'll use a minimum bounding rectangle to determine
+        intersection.
+
+        Uses the [$geoNear aggregation operator](https://www.mongodb.com/docs/manual/reference/operator/aggregation/geoNear/#mongodb-pipeline-pipe.-geoNear)
+        which requires a geospatial index on the location field, which is set during import.
+        """
+        from bson.son import SON
+
+        target_latitude = 39.916
+        target_longitude = 116.397
+        target_size_m2 = 720_000
+        max_distance_m = math.sqrt(target_size_m2 / math.pi)
+        print(max_distance_m)
+
+        if _type == "box":
+            box = self.db.track_points.find(
+                {
+                    "location": {
+                        "$geoWithin": SON(
+                            [
+                                (
+                                    "$box",
+                                    [
+                                        # Bottom left coordinates
+                                        [116.392626, 39.913349],
+                                        # upper right coordinates
+                                        [116.401370, 39.922705],
+                                    ],
+                                )
+                            ]
+                        )
+                    }
+                }
+            )
+            return pd.DataFrame(list(box))
+
+        result = self.db.track_points.aggregate(
+            [
+                {
+                    # https://www.mongodb.com/docs/manual/reference/operator/aggregation/geoNear/#mongodb-pipeline-pipe.-geoNear
+                    "$geoNear": SON(
+                        [
+                            # set the distance to the forbidden city to the field 'distance_to_forbidden_city'
+                            ("distanceField", "distance_to_forbidden_city"),
+                            # the field which has location data for the track points
+                            # must be a Geosphere 2D index
+                            ("key", "location"),
+                            # max distance to be considered "near"
+                            ("maxDistance", max_distance_m),
+                            # target coordinate
+                            (
+                                "near",
+                                SON(
+                                    [
+                                        ("type", "Point"),
+                                        (
+                                            "coordinates",
+                                            [target_longitude, target_latitude],
+                                        ),
+                                    ]
+                                ),
+                            ),
+                            # consider a sphere instead of 2d geometry
+                            ("nearSphere", True),
+                        ]
+                    )
+                },
+                # Sort all documents on distance to forbidden city, ascending
+                {"$sort": {"distance_to_forbidden_city": -1}},
+                # Group the documents by user_id, and for track_point, distance, location, and activity ID
+                # we can select the first instance, as the documents have been sorted based on distance.
+                {
+                    "$group": {
+                        "_id": "$user_id",
+                        "nearest_distance_to_hidden_city (m)": {
+                            "$first": "$distance_to_forbidden_city"
+                        },
+                        "track_point_id": {"$first": "$_id"},
+                        "activity_id": {"$first": "$activity_id"},
+                        "location": {"$first": "$location"},
+                    }
+                },
+                # Sort on user ID
+                {"$sort": {"_id": 1}},
+                {
+                    "$project": SON(
+                        [
+                            ("user_id", "$_id"),
+                            ("_id", 0),
+                            ("nearest_distance_to_hidden_city (m)", 1),
+                            ("activity_id", 1),
+                            ("track_point_id", 1),
+                        ]
+                    )
+                },
+            ]
+        )
+        return pd.DataFrame(list(result))
+
+    @timed
     def task11(self):
+        """
+        Find all users who have registered transportation_mode and their most used
+        transportation_mode.
+        """
         res = self.db.activities.aggregate(
             [
                 {
@@ -152,7 +267,7 @@ class Task:
                     "$project": {
                         "_id": 0,
                         "user_id": "$_id",
-                        "transportation_mode": "$transportation_mode",
+                        "most_used_transportation_mode": "$transportation_mode",
                         "transportation_mode_count": "$transportation_mode_count",
                     }
                 },
