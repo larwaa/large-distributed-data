@@ -7,6 +7,7 @@ import pandas as pd
 from bson import ObjectId
 from database import CustomDbConnector, Database
 from timed import timed
+import pymongo
 
 
 class Importer:
@@ -25,6 +26,10 @@ class Importer:
     )
     # Path to the data directory in dataset, relative to this file
     data_path = os.path.join(dataset_path, "data")
+
+    _raw_activities_df: pd.DataFrame
+    _raw_track_points_df: pd.DataFrame
+    _raw_users_df: pd.DataFrame
 
     def __init__(self, db: "Database", activity_line_limit: int = 2500):
         self.activity_line_limit = activity_line_limit
@@ -78,6 +83,7 @@ class Importer:
 
         # Add a `has_label` field for all users
         users_df["has_labels"] = users_df["_id"].isin(labeled_users["_id"])
+        self._raw_users_df = users_df
         return users_df
 
     def _get_transportation_mode(
@@ -175,7 +181,15 @@ class Importer:
                         ).rename({"date_time": "datetime"}, axis=1)
                         # Generate a unique ID for the activity that we can use as a reference for the track points
                         activity_id = ObjectId()
+                        df["location"] = df.apply(
+                            lambda row: {
+                                "type": "Point",
+                                "coordinates": [row["longitude"], row["latitude"]],
+                            },
+                            axis=1,
+                        )
                         df["activity_id"] = activity_id
+                        df["user_id"] = id_with_leading_zeros
 
                         track_point_dfs.append(df)
                         activity_tuples.append(
@@ -195,6 +209,8 @@ class Importer:
             columns=["_id", "user_id", "start_datetime", "end_datetime"],
         )
         activities_df = self._get_transportation_mode(users_df, activities_df)
+        self._raw_activities_df = activities_df
+        self._raw_track_points_df = track_points_df
         return activities_df, track_points_df
 
     @timed
@@ -263,6 +279,7 @@ class Importer:
 
         # Create collections for users, activities, and track points
         self.create_collections()
+        self.db.track_points.create_index(["location", pymongo.GEOSPHERE])
 
         # Import data into collections
         print("Importing users")
@@ -271,6 +288,10 @@ class Importer:
         self._import(activities_df, "activities")
         print("Importing track points")
         self._import(track_points_df, "track_points")
+
+        print("Creating spatial index for location on db.track_points")
+        self.db.track_points.create_index([("location", pymongo.GEOSPHERE)])
+        print("Finished creating index")
 
     def create_collections(self):
         """
