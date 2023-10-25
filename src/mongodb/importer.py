@@ -279,7 +279,6 @@ class Importer:
 
         # Create collections for users, activities, and track points
         self.create_collections()
-        self.db.track_points.create_index(["location", pymongo.GEOSPHERE])
 
         # Import data into collections
         print("Importing users")
@@ -289,9 +288,18 @@ class Importer:
         print("Importing track points")
         self._import(track_points_df, "track_points")
 
-        print("Creating spatial index for location on db.track_points")
+        print("Adding indices")
+        print("add spatial index for location on track_points")
+        # Create GEOSPHERE index for track points
         self.db.track_points.create_index([("location", pymongo.GEOSPHERE)])
-        print("Finished creating index")
+
+        # Create index for track points on activity id
+        print("Add index for activity_id on track_points")
+        self.db.track_points.create_index("activity_id")
+        # Create index for track points datetime
+        print("Add index for datetime on track_points")
+        self.db.track_points.create_index("datetime")
+        print("Finished adding indices")
 
     def create_collections(self):
         """
