@@ -232,20 +232,26 @@ class Task:
         return result
 
     @timed
-    def task10(self, _type: Literal["box", "circle"] = "box"):
+    def task10(self, _type: Literal["polygon", "circle"] = "polygon"):
         """
         Find the users who have recorded track points inside the Forbidden City of Beijing.
         As the Forbidden City is quite rectangular, this method returns the IDs of all users
-        who have recorded an activity bounded by the box with the following coordinates:
+        who have recorded an activity bounded by the polygon with the following coordinates:
         - Bottom left:
             longitude: 116.392626
             latitude: 39.913349
+        - Bottom right:
+            longitude: 116.392644
+            latitude: 39.913440
+        - Upper left:
+            longitude: 116.392182
+            latitude: 39.922432
         - Upper right:
             longitude: 116.401370
             latitude: 39.922705
         Which approximately correspond to the boundaries of the Forbidden City.
 
-        This is an approximation, as $box uses planar geometry. However, since the bounding rectangle
+        This is an approximation, as $polygon uses planar geometry. However, since the bounding rectangle
         is small compared to the surface of the earth, we consider the distortion due to the curvature of the
         earth to be insignificant.
 
@@ -264,27 +270,34 @@ class Task:
         """
         from bson.son import SON
 
-        if _type == "box":
+        if _type == "polygon":
             upper_right_coordinates = [116.401370, 39.922705]
+            upper_left_coordinates = [116.392182, 39.922432]
             bottom_left_coordinates = [116.392626, 39.913349]
+            bottom_right_coordinates = [116.392644, 39.913440]
 
-            box = self.db.track_points.find(
+            polygon = self.db.track_points.find(
                 {
                     "location": {
                         # Find all track points that are inside the bounding rectangle of the Forbidden City
                         "$geoWithin": SON(
                             [
                                 (
-                                    # https://www.mongodb.com/docs/manual/reference/operator/query/box/
-                                    "$box",
-                                    [bottom_left_coordinates, upper_right_coordinates],
+                                    # https://www.mongodb.com/docs/manual/reference/operator/query/polygon/
+                                    "$polygon",
+                                    [
+                                        bottom_left_coordinates,
+                                        bottom_right_coordinates,
+                                        upper_right_coordinates,
+                                        upper_left_coordinates,
+                                    ],
                                 )
                             ]
                         )
                     }
                 }
             ).distinct("user_id")
-            return pd.DataFrame(list(box))
+            return pd.DataFrame(list(polygon))
         else:
             target_latitude = 39.916  # center latitude coordinate of the forbidden city
             target_longitude = (
