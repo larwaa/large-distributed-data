@@ -191,6 +191,16 @@ class Task:
 
 
     @timed
+    def task9(self):
+        """
+        Find all users who have invalid activities, and the number of invalid activities
+        per user
+        - An invalid activity is defined as an activity with consecutive trackpoints
+        where the timestamps deviate with at least 5 minutes.
+        """
+        pass
+
+    @timed
     def task10(self, _type: Literal["box", "circle"] = "box"):
         """
         Find the users who have recorded track points inside the Forbidden City of Beijing.
