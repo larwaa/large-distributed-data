@@ -90,8 +90,9 @@ class CustomDbConnector(DbConnector):
         connection_opts: str = "?authSource=admin",
     ):
         super().__init__(
-            DATABASE=f"{database}{connection_opts}",
+            DATABASE=database,
             USER=user,
             PASSWORD=password,
             HOST=f"{host}:{port}",
+            OPTS=connection_opts,
         )
