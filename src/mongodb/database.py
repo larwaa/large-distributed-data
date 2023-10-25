@@ -87,7 +87,7 @@ class CustomDbConnector(DbConnector):
         user: str = "root",
         password: str = "password",
         port: int = 27017,
-        # connection_opts: str = "?authSource=admin",
+        connection_opts: str = "?authSource=admin",
     ):
         super().__init__(
             DATABASE=database,
