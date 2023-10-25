@@ -176,41 +176,53 @@ class Task:
         # Fetch the track points, sorted by activity_id and datetime
         # to ensure that consecutive track points for the same activity are in fact
         # consecutive elements in our result
+        print("Fetching track points")
         track_points = self.db.track_points.find(allow_disk_use=True).sort(
             ["activity_id", "datetime"]
         )
 
         # Load the results into a DataFrame
+        print("Loading into DataFrame")
         df = pd.DataFrame(list(track_points))
 
         # Ensure that the `datetime` column is a `datetime`
+        print("Convert datetime to datetime")
         df["datetime"] = pd.to_datetime(df["datetime"])
 
         # Create a new column, `time_diff`, which is the time difference between two consecutive rows
+        print("Find time diff")
         df["time_diff"] = df["datetime"].diff()
 
         # Create a boolean index of columns where the `time_diff` exceeds 5 minutes
+        print("Find indices where time diff exceeds 5 minutes")
         time_diff_gt_5_minutes = df["time_diff"] > datetime.timedelta(minutes=5)
 
         # We're only interested in track points that have a difference greater than 5 minutes
         # if they belong to the same activity.
         # Thus, create a boolean index for rows that have the same activity_id as the previous row
+        print("Find indices where activity id is equal to the previous index")
         same_activity_as_previous_row = df["activity_id"].eq(df["activity_id"].shift())
 
         # Combine the two boolean indices to find the indices where the time difference to the previous
         # track point exceeds 5 minutes, and has the same activity_id as the previous track point
+        print(
+            "Find indices where activity id is the same as the previous index AND the time difference exceeds 5 minutes"
+        )
         same_activity_and_diff_gt_5_min = (
             same_activity_as_previous_row & time_diff_gt_5_minutes
         )
 
         # This gives us a DataFrame of invalid track points
+        print("Find all invalid track points")
         invalid_track_points = df[same_activity_and_diff_gt_5_min]
 
         # We're only interested in distinct activity_ids
+        print("Drop duplicates on activity id")
         invalid_track_points = invalid_track_points.drop_duplicates(["activity_id"])
 
         # Now that we have a DataFrame of unique activity ids that are invalid, we
         # group by user_id, and count the number of invalid activity_ids per user
+        print("Group by user and count the number of activity ids")
         result = (
             invalid_track_points[["activity_id", "user_id"]]
             .groupby(["user_id"])
