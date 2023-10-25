@@ -60,44 +60,6 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res), index=[0]).drop("_id", axis=1)
-    
-    def task22(self):
-        """
-        Find the average number of activities per user.
-        """
-
-        ## should be the same as the number of activities per user?
-
-        res = self.db.users.aggregate(
-            [
-                {"$project": {
-                    "_id": 1,
-                    "activitiesCount": { "$size": "$activities" }
-                    }
-                }
-                ])
-        
-        return pd.DataFrame(list(res))
-    
-    def task222(self):
-        """
-        Find the average number of activities per user.
-        """
-
-        ## If it ask for avg number of track points per user.
-
-        res = self.db.activities.aggregate(
-            [
-                {"$project": {"user_id": 1, "trackPointsCount": { "$size": "$track_points" }}},
-                
-                {"$group": {"_id": "$user_id", "averageTrackPointsPerUser": { "$avg": "$trackPointsCount" }}},
-            
-                {"$sort": {"_id": 1}}
-
-                
-            ])
-        
-        return pd.DataFrame(list(res))
 
     @timed
     def task3(self):
