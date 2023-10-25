@@ -9,6 +9,10 @@ class Task:
     def __init__(self, db: "Database"):
         self.db = db
 
+
+    
+
+
     @timed
     def task1(self):
         """
@@ -56,6 +60,44 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res), index=[0]).drop("_id", axis=1)
+    
+    def task22(self):
+        """
+        Find the average number of activities per user.
+        """
+
+        ## should be the same as the number of activities per user?
+
+        res = self.db.users.aggregate(
+            [
+                {"$project": {
+                    "_id": 1,
+                    "activitiesCount": { "$size": "$activities" }
+                    }
+                }
+                ])
+        
+        return pd.DataFrame(list(res))
+    
+    def task222(self):
+        """
+        Find the average number of activities per user.
+        """
+
+        ## If it ask for avg number of track points per user.
+
+        res = self.db.activities.aggregate(
+            [
+                {"$project": {"user_id": 1, "trackPointsCount": { "$size": "$track_points" }}},
+                
+                {"$group": {"_id": "$user_id", "averageTrackPointsPerUser": { "$avg": "$trackPointsCount" }}},
+            
+                {"$sort": {"_id": 1}}
+
+                
+            ])
+        
+        return pd.DataFrame(list(res))
 
     @timed
     def task3(self):
@@ -113,6 +155,101 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res))
+    
+    @timed
+    def task6a(self):
+        """
+        6. 
+            a) Find the year with the most activities.
+        """
+
+        res = self.db.activities.aggregate(
+            [
+            {"$project": {"year": { "$year": "$start_datetime" }}},
+
+            {"$group": {"_id": "$year", "activityCount": { "$sum": 1 }}},
+
+            {"$project": {"year": "$_id",  "activityCount": 1, "_id": 0}},
+                
+            {"$sort": {"activityCount": -1}},
+
+            {"$limit": 1}
+
+            ]
+        )
+        return pd.DataFrame(list(res))
+
+
+    def task6b(self):
+        """
+        6. 
+            b) Is this also the year with most recorded hours?
+        """
+        res = self.db.activities.aggregate([
+          
+        {"$project": {
+        "year": { "$year": "$start_datetime" },
+        "duration": { "$divide": [{ "$subtract": ["$end_datetime", "$start_datetime"] }, 3600000] }
+        }},
+        {"$group": {
+            "_id": "$year",
+            "totalHours": { "$sum": "$duration" }
+        }},
+        {"$sort": {"totalHours": -1}},
+        {"$project": {"year": "$_id",  "totalHours": 1, "_id": 0}},
+        {"$limit": 1}
+
+        ])
+
+        return pd.DataFrame(list(res))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#     [
+#     {
+#         "$project": {
+#             "year": { "$year": "$start_datetime" },
+#             "duration": { "$divide": [{ "$subtract": ["$end_datetime", "$start_datetime"] }, 3600000] }
+#         }
+#     },
+#     {
+#         "$group": {
+#             "_id": "$year",
+#             "activityCount": { "$sum": 1 },
+#             "totalHours": { "$sum": "$duration" }
+#         }
+#     },
+#     {
+#         "$sort": {"activityCount": -1}  # Sort by activityCount in descending order
+#     },
+#     {
+#         "$limit": 1  # Limit to the top result (year with the most activities)
+#     }
+# ]
+
+        
 
     @timed
     def task10(self, _type: Literal["box", "circle"] = "box"):
