@@ -177,9 +177,9 @@ class Task:
         # to ensure that consecutive track points for the same activity are in fact
         # consecutive elements in our result
         print("Fetching track points")
-        track_points = self.db.track_points.find(allow_disk_use=True).sort(
-            ["activity_id", "datetime"]
-        )
+        track_points = self.db.track_points.find(
+            {}, {"activity_id": 1, "datetime": 1, "user_id": 1}, allow_disk_use=True
+        ).sort(["activity_id", "datetime"])
 
         # Load the results into a DataFrame
         print("Loading into DataFrame")
