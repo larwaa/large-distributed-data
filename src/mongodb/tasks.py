@@ -60,44 +60,6 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res), index=[0]).drop("_id", axis=1)
-    
-    def task22(self):
-        """
-        Find the average number of activities per user.
-        """
-
-        ## should be the same as the number of activities per user?
-
-        res = self.db.users.aggregate(
-            [
-                {"$project": {
-                    "_id": 1,
-                    "activitiesCount": { "$size": "$activities" }
-                    }
-                }
-                ])
-        
-        return pd.DataFrame(list(res))
-    
-    def task222(self):
-        """
-        Find the average number of activities per user.
-        """
-
-        ## If it ask for avg number of track points per user.
-
-        res = self.db.activities.aggregate(
-            [
-                {"$project": {"user_id": 1, "trackPointsCount": { "$size": "$track_points" }}},
-                
-                {"$group": {"_id": "$user_id", "averageTrackPointsPerUser": { "$avg": "$trackPointsCount" }}},
-            
-                {"$sort": {"_id": 1}}
-
-                
-            ])
-        
-        return pd.DataFrame(list(res))
 
     @timed
     def task3(self):
@@ -227,29 +189,6 @@ class Task:
 
 
 
-#     [
-#     {
-#         "$project": {
-#             "year": { "$year": "$start_datetime" },
-#             "duration": { "$divide": [{ "$subtract": ["$end_datetime", "$start_datetime"] }, 3600000] }
-#         }
-#     },
-#     {
-#         "$group": {
-#             "_id": "$year",
-#             "activityCount": { "$sum": 1 },
-#             "totalHours": { "$sum": "$duration" }
-#         }
-#     },
-#     {
-#         "$sort": {"activityCount": -1}  # Sort by activityCount in descending order
-#     },
-#     {
-#         "$limit": 1  # Limit to the top result (year with the most activities)
-#     }
-# ]
-
-        
 
     @timed
     def task10(self, _type: Literal["box", "circle"] = "box"):
