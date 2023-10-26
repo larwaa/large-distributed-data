@@ -639,13 +639,25 @@ class Task:
 def main():
     """
     Run through all tasks, saving the answers to disk.
+
     """
     import os
 
     from database import CustomDbConnector
     from importer import Importer
+    from environs import Env
 
-    db_conn = CustomDbConnector()
+    env = Env()
+    env.read_env(".env")
+
+    db_conn = CustomDbConnector(
+        host=env.str("DB_HOST", "localhost"),
+        port=env.int("DB_PORT", 27017),
+        user=env.str("DB_USER", "root"),
+        password=env.str("DB_PASSWORD", "password"),
+        database=env.str("DB_DATABASE", "mongo"),
+        connection_opts=env.str("DB_CONNECTION_OPTIONS", "?authSource=admin"),
+    )
     imprt = Importer(db_conn.db)
     task = Task(db_conn.db)
 
