@@ -244,6 +244,9 @@ class Importer:
                             },
                             axis=1,
                         )
+                        curr_tps_df = curr_tps_df.drop(
+                            ["longitude", "latitude"], axis=1
+                        )
                         # Add a reference to the activity id
                         curr_tps_df["activity_id"] = activity_id
                         # Add a reference to the user
