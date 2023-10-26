@@ -583,6 +583,15 @@ class Task:
         """
         Find all users who have registered transportation_mode and their most used
         transportation_mode.
+
+        Perfoms the following steps:
+        1. Remove activities without transportatio mode
+        2. Group activities by `user_id` and `transportation_mode`, counting occurrences as `count`
+        3. Sort the resulting documents by `count`, descending
+        4. Group by `user_id`, selecting the first occurrence of `count` and `transportation_mode` as the
+            most used one, as we sorted the occurrences descending in step 3.
+        5. Sort by `_id` (user_id), ascending
+        6. Project to expected output, `user_id`, `most_used_transportation_mode`, `transportation_mode_count`
         """
         res = self.db.activities.aggregate(
             [
