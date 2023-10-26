@@ -4,7 +4,7 @@ This repository contains the project files for TDT4225 Very Large, Distributed D
 
 ## Setup
 
-This project runs a MySQL server through Docker Compose, and Python locally.
+This project runs a MySQL and MongoDB server through Docker Compose, and Python locally.
 
 ### Prerequisites
 
@@ -13,7 +13,10 @@ This project runs a MySQL server through Docker Compose, and Python locally.
 
 ### Database
 
-To start the database, run `docker compose up`. Afterwards, it is available at `localhost:3306`. Note that we purposely avoid mounting the MySQL data to a local volume as we want to easily start with a clean slate, meaning that `docker compose down` will wipe _any_ data in the database.
+To start the databases needed for the project, simply run
+```zsh
+docker compose up
+```
 
 ### Python
 
@@ -26,8 +29,17 @@ pip install -r requirements.txt
 2. Run the code
 
 ```zsh
-python src/main.py
+python src/mongodb/tasks.py
 ```
+or
+```zsh
+python src/mysql/tasks.py
+```
+
+## Structure
+`src/mysql` contains all the code for assignment 2, solving tasks with MySQL.
+
+`src/mongodb` contains all teh code for assignment 3, solving tasks with MongoDB
 
 ## Data
 
