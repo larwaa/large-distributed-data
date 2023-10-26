@@ -288,6 +288,13 @@ class Importer:
         print("Importing track points")
         self._import(track_points_df, "track_points")
 
+        self.add_indices()
+
+    def add_indices(self):
+        """
+        We can signficicantly improve the performance of certain queries
+        by indexing commonly used fields for the data
+        """
         print("Adding indices")
         print("add spatial index for location on track_points")
         # Create GEOSPHERE index for track points
