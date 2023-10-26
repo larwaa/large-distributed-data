@@ -21,7 +21,7 @@ class DbConnector:
         # [Added by us] To connect to the docker container, we need to pass some additional connection options
         OPTS="",
     ):
-        uri = "mongodb://localhost:27017/"
+        uri = f"mongodb://{USER}:{PASSWORD}@{HOST}/{DATABASE}{OPTS}"
         # Connect to the databases
         try:
             self.client = MongoClient(uri)
