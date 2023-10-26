@@ -155,8 +155,7 @@ class Task:
     @timed
     def task6a(self):
         """
-        6.
-            a) Find the year with the most activities.
+        Find the year with the most activities.
         """
 
         res = self.db.activities.aggregate(
@@ -178,8 +177,7 @@ class Task:
     @timed
     def task6b(self):
         """
-        6.
-            b) Is this also the year with most recorded hours?
+        Is this also the year with most recorded hours?
         """
         res = self.db.activities.aggregate(
             [
