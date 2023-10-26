@@ -10,10 +10,10 @@ from bson.son import SON
 
 
 def haversine_np(
-    lon1: pd.Series,
-    lat1: pd.Series,
-    lon2: pd.Series,
-    lat2: pd.Series,
+    longitude_1: pd.Series,
+    latitude_1: pd.Series,
+    longitude_2: pd.Series,
+    latitude_2: pd.Series,
 ) -> npt.NDArray:
     """
     Calculate the great circle distance between two points
@@ -26,16 +26,22 @@ def haversine_np(
         npt.NDArray
             Distance between the points in kilometers
     """
-    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
+    longitude_1, latitude_1, longitude_2, latitude_2 = map(
+        np.radians, [longitude_1, latitude_1, longitude_2, latitude_2]
+    )
 
-    dlon = lon2 - lon1
+    delta_longitude = longitude_2 - longitude_1
 
-    dlat = lat2 - lat1
+    delta_latitude = latitude_2 - latitude_1
 
-    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
+    inner = (
+        np.sin(delta_latitude / 2.0) ** 2
+        + np.cos(latitude_1) * np.cos(latitude_2) * np.sin(delta_longitude / 2.0) ** 2
+    )
+    d = 2 * np.arcsin(np.sqrt(inner))
 
-    c = 2 * np.arcsin(np.sqrt(a))
-    km = 6367 * c
+    radius_of_earth_km = 6_378
+    km = radius_of_earth_km * d
     return km
 
 
@@ -194,6 +200,7 @@ class Task:
 
         return pd.DataFrame(list(res))
 
+    @timed
     def task7(self):
         """
         Find the total distance (in km) walked in 2008, by user with id=112
@@ -638,6 +645,13 @@ def main():
     task.task3().to_csv("task3.csv")
     task.task4().to_csv("task4.csv")
     task.task5().to_csv("task5.csv")
+    task.task6a().to_csv("task6a.csv")
+    task.task6b().to_csv("task6b.csv")
+    task.task7().to_csv("task7.csv")
+    task.task8().to_csv("task8.csv")
+    task.task9().to_csv("task9.csv")
+    task.task10().to_csv("task10.csv")
+    task.task11().to_csv("task11.csv")
 
 
 if __name__ == "__main__":
