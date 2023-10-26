@@ -37,6 +37,14 @@ class Importer:
 
     @property
     def imported(self) -> bool:
+        """
+        Check if we already have some collections in our database
+
+        Returns:
+            bool
+                True if we already have imported data, i.e. created collections in our database,
+                False otherwise.
+        """
         in_db = self.db.list_collection_names()
         return len(in_db) != 0
 
@@ -44,6 +52,13 @@ class Importer:
     def _add_mongo_object_id(df: pd.DataFrame) -> pd.DataFrame:
         """
         Helper method to add a MongoDB Object ID column to a dataframe
+
+        Params:
+            df: DataFrame
+                DataFrame to which to add an `_id` column, which is a Mongo Object ID
+        Returns:
+            DataFrame
+                A copy of `df` with an additional `_id` column
         """
         df_copy = df.copy()
         df_copy["_id"] = df_copy.apply(lambda _: ObjectId(), axis=1)
@@ -86,12 +101,22 @@ class Importer:
         self._raw_users_df = users_df
         return users_df
 
-    def _get_transportation_mode(
+    def _add_transportation_mode_to_activities(
         self, users_df: pd.DataFrame, activities_df: pd.DataFrame
     ) -> pd.DataFrame:
         """
         Fill transportation modes for activities, using only exact matches on start_datetime and end_datetime for each user.
         If there are multiple matches, use the first match.
+
+        Params:
+            users_df: pd.DataFrame
+                The DataFrame with user data. Must have a `_id` column which is the ID of the user and a `has_labels`
+                column, which is a boolean column that is `True` if the user has labelled transportation mode.
+            activities_df: pd.DataFrame
+                The DataFrame with activity data
+        Returns:
+            DataFrame
+                A copy of `activities_df` with an additional `transportation_mode` column
         """
         label_dfs = []
 
@@ -121,6 +146,36 @@ class Importer:
             "transportation_mode"
         ].fillna("")
         return activities_df_copy
+
+    def _add_transportation_mode_to_track_points(
+        self, activities_df: pd.DataFrame, track_points_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Adds `transportation_mode` to each track point
+
+        Params:
+            activities_df: pd.DataFrame
+                The DataFrame with activities data, must have a `transportation_mode` column, which can
+                be created by using `_add_transportation_mode_to_activities`
+            track_points_df: pd.DataFrame
+                The DataFrame with track points. Must have an `activity_id` column
+
+        Returns:
+            DataFrame
+                A copy of `track_points_df` with an additional `transportation_mode` column
+        """
+        # Rename and restructure the activities DataFrame to make it easier to merge
+        transportation_mode_per_activity = activities_df[
+            ["_id", "transportation_mode"]
+        ].rename({"_id": "activity_id"}, axis=1)
+
+        # Merge the transportation mode based on activity id
+        return track_points_df.merge(
+            transportation_mode_per_activity,
+            left_on="activity_id",
+            right_on="activity_id",
+            how="left",
+        )
 
     @timed
     def import_activities_and_track_points_df(
@@ -152,8 +207,8 @@ class Importer:
                         len(f.readlines())
                         <= self.activity_line_limit + self.HEADER_SIZE
                     ):
-                        # Read the track points for an activity
-                        df = pd.read_csv(
+                        # Create a DataFrame of all track points for this activity
+                        curr_tps_df = pd.read_csv(
                             file_path,
                             skiprows=self.HEADER_SIZE,
                             names=[
@@ -179,39 +234,129 @@ class Importer:
                             },
                             parse_dates=[["date", "time"]],
                         ).rename({"date_time": "datetime"}, axis=1)
+
                         # Generate a unique ID for the activity that we can use as a reference for the track points
                         activity_id = ObjectId()
-                        df["location"] = df.apply(
+                        curr_tps_df["location"] = curr_tps_df.apply(
                             lambda row: {
                                 "type": "Point",
                                 "coordinates": [row["longitude"], row["latitude"]],
                             },
                             axis=1,
                         )
-                        df["activity_id"] = activity_id
-                        df["user_id"] = id_with_leading_zeros
+                        # Add a reference to the activity id
+                        curr_tps_df["activity_id"] = activity_id
+                        # Add a reference to the user
+                        curr_tps_df["user_id"] = id_with_leading_zeros
 
-                        track_point_dfs.append(df)
+                        # Add the DataFrame for the track points for this activity to the list of
+                        # all track point DataFrames
+                        track_point_dfs.append(curr_tps_df)
+                        # Add this activity to the tuple of activity data
                         activity_tuples.append(
                             (
                                 activity_id,
                                 user_id,
-                                df["datetime"].iloc[0],
-                                df["datetime"].iloc[-1],
+                                # Start datetime for the activity is the datetime of the first track point
+                                curr_tps_df["datetime"].iloc[0],
+                                # End datetime for the activity is the datetime of the last track point
+                                curr_tps_df["datetime"].iloc[-1],
                             )
                         )
 
         # Combine the individual DFs for track points per activity into one large DF
         track_points_df = pd.concat(track_point_dfs, axis=0)
+
         # Combine all activity data into a DF
         activities_df = pd.DataFrame(
             activity_tuples,
             columns=["_id", "user_id", "start_datetime", "end_datetime"],
         )
-        activities_df = self._get_transportation_mode(users_df, activities_df)
-        self._raw_activities_df = activities_df
-        self._raw_track_points_df = track_points_df
+
+        # Add transportation modes for each activity
+        activities_df = self._add_transportation_mode_to_activities(
+            users_df, activities_df
+        )
+
+        # To make it easier to query the data, we add transportation mode to each track point as well
+        track_points_df = self._add_transportation_mode_to_track_points(
+            activities_df, track_points_df
+        )
+
+        # Add mongo object IDs to all track points
+        track_points_df = self._add_mongo_object_id(track_points_df)
+
         return activities_df, track_points_df
+
+    def _add_back_reference_for_track_points_on_activities(
+        self, activities_df: pd.DataFrame, track_points_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Return a copy of `activities_df` with an additional `track_points` column, which is a list of
+        track points for each activity.
+
+        Params:
+            activities_df: pd.DataFrame
+                The DataFrame with activities, must have a column with `_id`, which is the ID of the activity
+            track_points_df: pd.DataFrame
+                The DataFrame with track points, must have a column with `activity_id`, which is the id of the
+                activity the track point belongs to.
+        Returns:
+            DataFrame
+                A copy of `activities_df` with an additional `track_points` column, which is a list of
+                track point IDs for each activity.
+        """
+
+        # Create a DataFrame of all track points for an activity
+        activity_track_points = pd.DataFrame(
+            track_points_df.groupby(["activity_id"])["_id"]
+            .apply(list)
+            .reset_index()
+            .rename({"_id": "track_points", "activity_id": "_id"}, axis=1)
+        )
+        # Add a back reference to the activities DF to easily list all track points for an activity
+        activities_with_back_reference = activities_df.merge(
+            activity_track_points, on="_id", how="left"
+        )
+        # Fill NA with empty array for activities without track points
+        activities_with_back_reference["track_points"] = (
+            activities_with_back_reference["track_points"].fillna("").apply(list)
+        )
+        return activities_with_back_reference
+
+    def _add_back_reference_for_activities_on_users(
+        self, users_df: pd.DataFrame, activities_df: pd.DataFrame
+    ):
+        """
+        Return a copy of users_df with an additional `activities` column, which is a list of
+        activities for each user.
+
+        Params:
+            users_df: pd.DataFrame
+                The DataFrame with user data, must have a `_id` column with the ID of the user,
+            activities_df: pd.DataFrame
+                The DataFrame with activities data, must have a `user_id` column with the ID of the user
+                it belongs to
+        Returns:
+            pd.DataFrame
+                A copy of users_df with `activities`, which is a list of all activity IDs for the user
+        """
+        # Create a DataFrame of all activities for a user
+        user_activities = pd.DataFrame(
+            activities_df.groupby(["user_id"])["_id"]
+            .apply(list)
+            .reset_index()
+            .rename({"_id": "activities", "user_id": "_id"}, axis=1)
+        )
+        # Add a backreference to the user DF to easily list all activities for a user
+        users_with_back_reference = users_df.merge(
+            user_activities, on="_id", how="left"
+        )
+        # Fill NA with empty array for users without activities
+        users_with_back_reference["activities"] = (
+            users_with_back_reference["activities"].fillna("").apply(list)
+        )
+        return users_with_back_reference
 
     @timed
     def import_with_backreferences(self):
@@ -248,33 +393,14 @@ class Importer:
             users_df
         )
 
-        # Add mongo object IDs to all track points
-        track_points_df = self._add_mongo_object_id(track_points_df)
-
-        # Create a DataFrame of all activities for a user
-        user_activities = pd.DataFrame(
-            activities_df.groupby(["user_id"])["_id"]
-            .apply(list)
-            .reset_index()
-            .rename({"_id": "activities", "user_id": "_id"}, axis=1)
+        # Add back references to make querying easier
+        # We add the list of all activities for a user on the user document
+        users_df = self._add_back_reference_for_activities_on_users(
+            users_df, activities_df
         )
-        # Add a backreference to the user DF to easily list all activities for a user
-        users_df = users_df.merge(user_activities, on="_id", how="left")
-        # Fill NA with empty array for users without activities
-        users_df["activities"] = users_df["activities"].fillna("").apply(list)
-
-        # Create a DataFrame of all track points for an activity
-        activity_track_points = pd.DataFrame(
-            track_points_df.groupby(["activity_id"])["_id"]
-            .apply(list)
-            .reset_index()
-            .rename({"_id": "track_points", "activity_id": "_id"}, axis=1)
-        )
-        # Add a backrefernece to the activities DF to easily list all track points for an activity
-        activities_df = activities_df.merge(activity_track_points, on="_id", how="left")
-        # Fill NA with empty array for activities without track points
-        activities_df["track_points"] = (
-            activities_df["track_points"].fillna("").apply(list)
+        # And the list of all track points for an activity on the activity document
+        activities_df = self._add_back_reference_for_track_points_on_activities(
+            activities_df, track_points_df
         )
 
         # Create collections for users, activities, and track points
@@ -308,6 +434,7 @@ class Importer:
         self.db.track_points.create_index("datetime")
         print("Finished adding indices")
 
+    @timed
     def create_collections(self):
         """
         Create the collections for the project
@@ -322,12 +449,15 @@ class Importer:
         for collection in self.collections:
             self.db.drop_collection(collection)
 
+    @timed
     def user_sample(self, limit: int = 10):
         return pd.DataFrame(list(self.db.users.find().limit(limit)))
 
+    @timed
     def activity_sample(self, limit: int = 10):
         return pd.DataFrame(list(self.db.activities.find().limit(limit)))
 
+    @timed
     def track_point_sample(self, limit: int = 10):
         return pd.DataFrame(list(self.db.track_points.find().limit(limit)))
 
