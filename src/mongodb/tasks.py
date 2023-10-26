@@ -597,17 +597,22 @@ class Task:
                             "user_id": "$user_id",
                             "transportation_mode": "$transportation_mode",
                         },
+                        # Count the number of documents
                         "count": {"$count": {}},
                     }
                 },
+                # Sort by transportation mode count, descending, that way, the first docment for each
+                # user is the transportation_mode with the highest count
+                {"$sort": {"count": -1}},
                 {
                     # Group by user_id, and select first occurance of transportation_mode with max count
                     "$group": {
                         # Group by user_id
                         "_id": "$_id.user_id",
-                        # Select max count of transportation mode
-                        "transportation_mode_count": {"$max": "$count"},
-                        # Tie break first mode of transportation
+                        # Select max count of transportation mode, which, as we sorted in the previous step,
+                        # is the first document
+                        "transportation_mode_count": {"$first": "$count"},
+                        # Since we sorted in the previous step, we can just select the first element
                         "transportation_mode": {"$first": "$_id.transportation_mode"},
                     }
                 },
