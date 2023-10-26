@@ -1,12 +1,13 @@
-import pandas as pd
-from database import Database
-from timed import timed
+import datetime
 import math
 from typing import Literal
-import datetime
+
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from bson.son import SON
+from database import Database
+from timed import timed
 
 
 def haversine_np(
@@ -634,24 +635,31 @@ def main():
     """
     Run through all tasks, saving the answers to disk.
     """
+    import os
 
     from database import CustomDbConnector
+    from importer import Importer
 
     db_conn = CustomDbConnector()
+    imprt = Importer(db_conn.db)
     task = Task(db_conn.db)
 
-    task.task1().to_csv("task1.csv")
-    task.task2().to_csv("task2.csv")
-    task.task3().to_csv("task3.csv")
-    task.task4().to_csv("task4.csv")
-    task.task5().to_csv("task5.csv")
-    task.task6a().to_csv("task6a.csv")
-    task.task6b().to_csv("task6b.csv")
-    task.task7().to_csv("task7.csv")
-    task.task8().to_csv("task8.csv")
-    task.task9().to_csv("task9.csv")
-    task.task10().to_csv("task10.csv")
-    task.task11().to_csv("task11.csv")
+    imprt.drop_collections()
+    imprt.import_with_backreferences()
+
+    root_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+    task.task1().to_csv(os.path.join(root_path, "task1.csv"))
+    task.task2().to_csv(os.path.join(root_path, "task2.csv"))
+    task.task3().to_csv(os.path.join(root_path, "task3.csv"))
+    task.task4().to_csv(os.path.join(root_path, "task4.csv"))
+    task.task5().to_csv(os.path.join(root_path, "task5.csv"))
+    task.task6a().to_csv(os.path.join(root_path, "task6a.csv"))
+    task.task6b().to_csv(os.path.join(root_path, "task6b.csv"))
+    task.task7().to_csv(os.path.join(root_path, "task7.csv"))
+    task.task8().to_csv(os.path.join(root_path, "task8.csv"))
+    task.task9().to_csv(os.path.join(root_path, "task9.csv"))
+    task.task10().to_csv(os.path.join(root_path, "task10.csv"))
+    task.task11().to_csv(os.path.join(root_path, "task11.csv"))
 
 
 if __name__ == "__main__":
