@@ -86,10 +86,6 @@ class Task:
                     "$group": {
                         # Group everything
                         "_id": {},
-                        # Find minimum activity count
-                        "min_activity_count": {"$min": "$activity_count"},
-                        # Find maximum activity count
-                        "max_activity_count": {"$max": "$activity_count"},
                         # Find average activity count
                         "avg_activity_count": {"$avg": "$activity_count"},
                     }
@@ -110,6 +106,7 @@ class Task:
                 {"$project": {"activity_count": {"$size": "$activities"}}},
                 # Sort by activitiy count, descending
                 {"$sort": {"activity_count": -1}},
+                {"$project": {"user_id": "$_id", "_id": 0, "activity_count": 1}},
                 # Limit to 20
                 {"$limit": 20},
             ]
@@ -354,7 +351,8 @@ class Task:
             sorted_altitude_gain_per_user = altitude_gain_per_user.sort_values(
                 ["total meters gained per user"], ascending=False
             )
-            return sorted_altitude_gain_per_user
+            # Limit to the top 20 users
+            return sorted_altitude_gain_per_user.head(20)
 
     @timed
     def task9(self):
@@ -433,7 +431,7 @@ class Task:
             invalid_track_points[["activity_id", "user_id"]]
             .groupby(["user_id"])
             .count()
-        )
+        ).rename({"activity_id": "# Invalid Activities"}, axis=1)
 
         return result
 
