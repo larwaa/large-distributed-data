@@ -232,7 +232,7 @@ class Task:
         return result
 
     @timed
-    def task10(self, _type: Literal["polygon", "circle"] = "polygon"):
+    def task10(self, how: Literal["polygon", "circle"] = "polygon"):
         """
         Find the users who have recorded track points inside the Forbidden City of Beijing.
         As the Forbidden City is quite rectangular, this method returns the IDs of all users
@@ -259,18 +259,18 @@ class Task:
         is set as we import the data set. Interally, we use the
         [$geoWithin](https://www.mongodb.com/docs/manual/reference/operator/query/geoWithin/) operator
 
-        Alternatively, by passing `_type="circle"`, we return the users who have recorded a
+        Alternatively, by passing `how="circle"`, we return the users who have recorded a
         track point inside a circle of radius `sqrt(720 000 / pi) ≈ 479 m`. However, users who
         have been to the far edges of the Forbidden City might get left out.
 
-        When using `_type="circle"`, we use the
+        When using `how="circle"`, we use the
         [$geoNear aggregation operator](https://www.mongodb.com/docs/manual/reference/operator/aggregation/geoNear/#mongodb-pipeline-pipe.-geoNear)
         which requires a geospatial index on the location field, which is set during import.
 
         """
         from bson.son import SON
 
-        if _type == "polygon":
+        if how == "polygon":
             upper_right_coordinates = [116.401370, 39.922705]
             upper_left_coordinates = [116.392182, 39.922432]
             bottom_left_coordinates = [116.392626, 39.913349]
@@ -297,7 +297,7 @@ class Task:
                     }
                 }
             ).distinct("user_id")
-            return pd.DataFrame(list(polygon))
+            return pd.DataFrame(list(polygon), columns=["Users in the Forbidden City"])
         else:
             target_latitude = 39.916  # center latitude coordinate of the forbidden city
             target_longitude = (
@@ -305,7 +305,8 @@ class Task:
             )
             target_size_m2 = 720_000  # size of the Forbidden City in square meters
             max_distance_m = (
-                math.sqrt(target_size_m2 / math.pi) + 300
+                math.sqrt(target_size_m2 / math.pi)
+                + 300  # Add a slight buffer as the circle won't catch the edges.
             )  # Bounding circle
 
             result = self.db.track_points.aggregate(
