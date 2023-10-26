@@ -4,6 +4,39 @@ from timed import timed
 import math
 from typing import Literal
 import datetime
+import numpy as np
+import numpy.typing as npt
+from bson.son import SON
+
+
+def haversine_np(
+    lon1: pd.Series,
+    lat1: pd.Series,
+    lon2: pd.Series,
+    lat2: pd.Series,
+) -> npt.NDArray:
+    """
+    Calculate the great circle distance between two points
+    on the earth (specified in decimal degrees).
+
+    Adapted from https://en.wikipedia.org/wiki/Haversine_formula
+    to support vectorized input.
+
+    Returns:
+        npt.NDArray
+            Distance between the points in kilometers
+    """
+    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
+
+    dlon = lon2 - lon1
+
+    dlat = lat2 - lat1
+
+    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
+
+    c = 2 * np.arcsin(np.sqrt(a))
+    km = 6367 * c
+    return km
 
 
 class Task:
@@ -160,6 +193,74 @@ class Task:
         )
 
         return pd.DataFrame(list(res))
+
+    def task7(self):
+        """
+        Find the total distance (in km) walked in 2008, by user with id=112
+
+        """
+        res = self.db.track_points.aggregate(
+            [
+                {
+                    "$match": {
+                        # Find documents with `user_id` 112
+                        "user_id": "112",
+                        # Only documents with `transportation_mode: "walk"`
+                        "transportation_mode": "walk",
+                        # Only documents between 1. Jan 2008 and 31. Dec 2008
+                        "datetime": {
+                            "$gte": datetime.datetime(2008, 1, 1),
+                            "$lt": datetime.datetime(2009, 1, 1),
+                        },
+                    }
+                },
+                {
+                    "$project": {
+                        # Extract the longitude and latitude coordinates into top-level fields
+                        # so that we can easily access them later in Pandas
+                        "longitude": {"$arrayElemAt": ["$location.coordinates", 0]},
+                        "latitude": {"$arrayElemAt": ["$location.coordinates", 1]},
+                        "activity_id": 1,
+                        "datetime": 1,
+                    }
+                },
+                # Sort by `activity_id` and `datetime` to ensure that consecutive track points for the same
+                # activity become consecutive documents in our result
+                {"$sort": SON([("activity_id", 1), ("datetime", 1)])},
+                # Drop unnecessary columns
+                {
+                    "$project": {
+                        "activity_id": 1,
+                        "longitude": 1,
+                        "latitude": 1,
+                        "_id": 0,
+                    }
+                },
+            ]
+        )
+
+        # Convert the result to a DataFrame
+        tp_df = pd.DataFrame(list(res))
+
+        # We don't want to track the distance travelled between track points
+        # So we ensure that we're only considering track points whose activity ID is the same
+        # as the previous one.
+        is_same_activity_as_previous = tp_df["activity_id"].eq(
+            tp_df["activity_id"].shift()
+        )
+
+        # Calculate the haversine distance between consecutive track points
+        tp_df["distance"] = haversine_np(
+            tp_df["longitude"],
+            tp_df["latitude"],
+            tp_df.shift()["longitude"],
+            tp_df.shift()["latitude"],
+        )
+
+        return pd.DataFrame(
+            [tp_df[is_same_activity_as_previous]["distance"].sum()],
+            columns=["Total Distance Walked by User 112 in 2008 (km)"],
+        )
 
     @timed
     def task8(self):
@@ -327,46 +428,6 @@ class Task:
         )
 
         return result
-    @timed
-    def task7(self):
-        from datetime import datetime
-        from haversine import haversine, Unit
-        """
-        7. Find the total distance (in km) walked in 2008, by user with id=112.
-        """
-        res = self.db.track_points.aggregate([
-            {"$project": { 
-                          "user_id": 1,
-                          "location": 1,
-                          "activity_id": 1,
-                          "user_id": 1,
-                          "datetime": 1}},
-            
-            {
-                "$match": {
-                    "$and": [
-                        {"user_id": "112"},
-                        {"datetime": {
-                            "$gte": datetime(2008, 1, 1),
-                            "$lt": datetime(2009, 1, 1)
-                            }
-                        }
-                    ]
-                }
-            },
-            {"$sort": {"activity_id": 1, "datetime": 1}},
-            {"$group": {"_id": "$activity_id", 
-                        "track_points": {"$push": {"location":"$location"}}}}, 
-            {"$limit": 10}
-            
-        ])
-
-        return pd.DataFrame(list(res))
-        
-    
-
-
-
 
     @timed
     def task10(self, how: Literal["polygon", "circle"] = "polygon"):
