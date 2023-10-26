@@ -110,5 +110,5 @@ class CustomDbConnector(DbConnector):
             USER=user,
             PASSWORD=password,
             HOST=f"{host}:{port}",
-            OPTS=connection_opts,
+            #OPTS=connection_opts,
         )
