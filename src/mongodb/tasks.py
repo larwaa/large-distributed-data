@@ -161,10 +161,15 @@ class Task:
 
         res = self.db.activities.aggregate(
             [
+                # Extract year from `start_datetime`
                 {"$project": {"year": {"$year": "$start_datetime"}}},
+                # Group by year, counting activities
                 {"$group": {"_id": "$year", "activityCount": {"$sum": 1}}},
+                # Change some field names
                 {"$project": {"year": "$_id", "activityCount": 1, "_id": 0}},
+                # Sort by activity count, descending
                 {"$sort": {"activityCount": -1}},
+                # Limit to 1, which is the year with the highest activity count
                 {"$limit": 1},
             ]
         )
@@ -180,18 +185,27 @@ class Task:
             [
                 {
                     "$project": {
+                        # Extract year from `start_datetime`
                         "year": {"$year": "$start_datetime"},
+                        # Get the duration by
                         "duration": {
-                            "$divide": [
-                                {"$subtract": ["$end_datetime", "$start_datetime"]},
-                                3600000,
-                            ]
+                            # Find the duration of each activity, i.e. the difference between the start and end time
+                            "$dateDiff": {
+                                "startDate": "$start_datetime",
+                                "endDate": "$end_datetime",
+                                # In hours
+                                "unit": "hour",
+                            }
                         },
                     }
                 },
+                # Group by year, summing the duration into `totalHours`
                 {"$group": {"_id": "$year", "totalHours": {"$sum": "$duration"}}},
+                # Sort by total hours, descending
                 {"$sort": {"totalHours": -1}},
+                # Change some field names
                 {"$project": {"year": "$_id", "totalHours": 1, "_id": 0}},
+                # Limit to 1 result, which is the maximum hours
                 {"$limit": 1},
             ]
         )
