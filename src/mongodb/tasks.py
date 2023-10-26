@@ -3,7 +3,6 @@ from database import Database
 from timed import timed
 import math
 from typing import Literal
-from bson.son import SON
 import datetime
 
 
@@ -162,6 +161,92 @@ class Task:
         return pd.DataFrame(list(res))
 
     @timed
+    def task8(self):
+        """
+        Find the top 20 users who have gained the most altitude meters.
+        - Output should be a field with (id, total meters gained per user).
+        - Remember that some altitude-values are invalid
+
+        Joins in aggregation pipelines are a bit tricky, so we're opting out of using aggregation pipelines here,
+        instead doing the data processing in Pandas.
+
+        As per the data guide, we consider altitudes of -777 to be invalid.
+
+        Performs the following steps:
+
+        1. Fetch all track points, sorted by `activity_id` and `datetime`, excluding invalid altitude values,
+            such that all consecutive track points for the same activity become consecutive documents
+        2. Load the results into a DataFrame
+        3. Calculate the difference in altitude between all consecutive track points
+        4. Find the indices with positive altitude gain
+        5. Find the indices where the track points have the same `activity_id` as the previous index
+        6. Combine the two boolean indices to find all indices where a user has gained altitude, and the track point
+            belongs to the same activity as the previous activity.
+        7. Use the combined boolean index to find all track points of interest, group by `user_id` and sum the gain
+            in altitude. Rename columns to to `id` and `total meters gained per user`
+        8. Sort the results by total meters gained per user, descending
+        """
+        # Set the float format output to get a nicer output for this task
+        with pd.option_context("display.float_format", "{:,.0f}".format):
+            # Fetch all track points, sorted by `activity_id` and `datetime` to ensure that
+            # consecutive track points for the same activity are consecutive documents.
+            print("Fetching track points")
+            track_points = self.db.track_points.find(
+                {
+                    # Altitude values of -777 are invalid, so we exclude them
+                    "altitude": {"$ne": -777}
+                },
+                {"activity_id": 1, "altitude": 1, "user_id": 1},
+                # Sort by `activity_id`, then `datetime` to ensure that consecutive track points for the same activity are
+                # returned as consecutive documents.
+            ).sort(["activity_id", "datetime"])
+
+            # Load the results into a DataFrame
+            print("Loading into DataFrame")
+            df = pd.DataFrame(list(track_points))
+
+            # Find the change in altidude, `Δ altitude` for each consecutive track point
+            print("Calculating the change in altitude between track points")
+            df["Δ altitude"] = df["altitude"].diff()
+
+            # Find the indices that have the same `activity_id` to avoid using altitude gains between activities, possibly
+            # from other users
+            print("Comparing activity_ids")
+            same_activity_as_previous_index = df["activity_id"].eq(
+                df["activity_id"].shift()
+            )
+
+            # Find all indices with positive altitude gain, as we only consider the gain in altitude
+            print("Create filter for positive Δ altitude")
+            positive_altitude_gain = df["Δ altitude"] >= 0
+
+            # Find all indices where we have both a positive altitude gain AND the same activity id
+            print("Create filter for positive Δ altitude and same activity")
+            has_altitude_gain_within_activity = (
+                positive_altitude_gain & same_activity_as_previous_index
+            )
+
+            # Using this boolean index, we can find all track points where the user has gained altitude.
+            # We then group these by `user_id` and sum it all up to gain the total altitude gain for a user
+            print("Summing the total altitude gain, grouped by user")
+            altitude_gain_per_user = (
+                df[has_altitude_gain_within_activity][["user_id", "Δ altitude"]]
+                .groupby(["user_id"], as_index=False)
+                .sum()
+                .rename(
+                    {"Δ altitude": "total meters gained per user", "user_id": "id"},
+                    axis=1,
+                )
+            )
+
+            # Finally, we sort by altitude gain, descending, giving us the altitude gain per user
+            print("Sorting by total meters gained, descending")
+            sorted_altitude_gain_per_user = altitude_gain_per_user.sort_values(
+                ["total meters gained per user"], ascending=False
+            )
+            return sorted_altitude_gain_per_user
+
+    @timed
     def task9(self):
         """
         Find all users who have invalid activities, and the number of invalid activities
@@ -169,8 +254,19 @@ class Task:
         - An invalid activity is defined as an activity with consecutive trackpoints
         where the timestamps deviate with at least 5 minutes.
 
-        We're opting out of doing this with aggregation pipelines as joins are a bit
-        tricky.
+        Similar to task 8, we're opting out of doing this with aggregation pipelines as joins are a bit
+        tricky. This method performs the following steps:
+
+        1. Fetch all track points, sorted by `activity_id` and `datetime`, such that
+        consecutive track points for the same activity are consecutive documents.
+        2. Load the results into a `DataFrame`
+        3. Take the difference between datetimes for consecutive indices
+        4. Create a boolean index for indices where the time difference exceeds the threshold of 5 minutes
+        5. Create a boolean index for indices where the `activity_id` is the same as the previous index
+        6. Take the AND between the two indices to get a boolean index where both conditions are met
+        7. Retreive the track points where the two conditions are met, and drop duplicates on `activity_id`
+        8. Group the resulting track points by `user_id` and `count` the `activity_id` to get the number
+            of invalid activities for each user.
         """
 
         # Fetch the track points, sorted by activity_id and datetime
