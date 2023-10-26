@@ -89,6 +89,22 @@ class CustomDbConnector(DbConnector):
         port: int = 27017,
         connection_opts: str = "?authSource=admin",
     ):
+        """
+        Initializes a new instance of the Database class.
+
+        :param host: The hostname or IP address of the MongoDB server.
+        :type host: str
+        :param database: The name of the database to connect to.
+        :type database: str
+        :param user: The username to use for authentication.
+        :type user: str
+        :param password: The password to use for authentication.
+        :type password: str
+        :param port: The port number to use for the MongoDB server.
+        :type port: int
+        :param connection_opts: Additional connection options to pass to the MongoDB driver.
+        :type connection_opts: str
+        """
         super().__init__(
             DATABASE=database,
             USER=user,

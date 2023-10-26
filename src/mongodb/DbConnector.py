@@ -18,6 +18,7 @@ class DbConnector:
         HOST="tdt4225-xx.idi.ntnu.no",
         USER="TEST_USER",
         PASSWORD="test123",
+        # [Added by us] To connect to the docker container, we need to pass some additional connection options
         OPTS="",
     ):
         uri = f"mongodb://{USER}:{PASSWORD}@{HOST}/{DATABASE}{OPTS}"
