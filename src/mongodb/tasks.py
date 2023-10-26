@@ -57,6 +57,44 @@ class Task:
             ]
         )
         return pd.DataFrame(list(res), index=[0]).drop("_id", axis=1)
+    
+    def task22(self):
+        """
+        Find the average number of activities per user.
+        """
+
+        ## should be the same as the number of activities per user?
+
+        res = self.db.users.aggregate(
+            [
+                {"$project": {
+                    "_id": 1,
+                    "activitiesCount": { "$size": "$activities" }
+                    }
+                }
+                ])
+        
+        return pd.DataFrame(list(res))
+    
+    def task222(self):
+        """
+        Find the average number of activities per user.
+        """
+
+        ## If it ask for avg number of track points per user.
+
+        res = self.db.activities.aggregate(
+            [
+                {"$project": {"user_id": 1, "trackPointsCount": { "$size": "$track_points" }}},
+                
+                {"$group": {"_id": "$user_id", "averageTrackPointsPerUser": { "$avg": "$trackPointsCount" }}},
+            
+                {"$sort": {"_id": 1}}
+
+                
+            ])
+        
+        return pd.DataFrame(list(res))
 
     @timed
     def task3(self):
@@ -133,6 +171,7 @@ class Task:
         )
         return pd.DataFrame(list(res))
 
+    @timed
     def task6b(self):
         """
         6.
@@ -326,6 +365,46 @@ class Task:
         )
 
         return result
+    @timed
+    def task7(self):
+        from datetime import datetime
+        from haversine import haversine, Unit
+        """
+        7. Find the total distance (in km) walked in 2008, by user with id=112.
+        """
+        res = self.db.track_points.aggregate([
+            {"$project": { 
+                          "user_id": 1,
+                          "location": 1,
+                          "activity_id": 1,
+                          "user_id": 1,
+                          "datetime": 1}},
+            
+            {
+                "$match": {
+                    "$and": [
+                        {"user_id": "112"},
+                        {"datetime": {
+                            "$gte": datetime(2008, 1, 1),
+                            "$lt": datetime(2009, 1, 1)
+                            }
+                        }
+                    ]
+                }
+            },
+            {"$sort": {"activity_id": 1, "datetime": 1}},
+            {"$group": {"_id": "$activity_id", 
+                        "track_points": {"$push": {"location":"$location"}}}}, 
+            {"$limit": 10}
+            
+        ])
+
+        return pd.DataFrame(list(res))
+        
+    
+
+
+
 
     @timed
     def task10(self, how: Literal["polygon", "circle"] = "polygon"):

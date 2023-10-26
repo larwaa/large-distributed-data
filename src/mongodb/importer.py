@@ -250,6 +250,7 @@ class Importer:
 
         # Add mongo object IDs to all track points
         track_points_df = self._add_mongo_object_id(track_points_df)
+        track_points_df = track_points_df.merge(activities_df[["_id", "transportation_mode"]], left_on="activity_id", right_on="_id", how="left")
 
         # Create a DataFrame of all activities for a user
         user_activities = pd.DataFrame(
