@@ -76,6 +76,21 @@ class CustomDbConnector(DbConnector):
     with pymongo, and adjustments to connection configuration to support Docker out of the box
 
     The only behavioral difference is the constructor, otherwise, it's just type hints which do not affect runtime.
+
+    The default parameters are set to work out of the box with
+    the following compose.yml
+
+    ```yml
+    mongo:
+        image: mongo:7.0.1
+        restart: always
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: root
+            MONGO_INITDB_ROOT_PASSWORD: password
+            MONGO_INITDB_DATABASE: mongo
+        ports:
+            - "27017:27017"
+    ```
     """
 
     db: Database
